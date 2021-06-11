@@ -1,0 +1,9 @@
+/*
+ * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
+procedure UDPSend {
+    int send(in uintptr_t data, in unsigned int len, in uint32_t ip4addr);
+};

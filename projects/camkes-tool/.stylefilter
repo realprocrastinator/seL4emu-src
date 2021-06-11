@@ -1,0 +1,16 @@
+#
+# Copyright 2019, Data61, CSIRO (ABN 41 687 119 230)
+#
+# SPDX-License-Identifier: BSD-2-Clause
+#
+
+# Don't style CAmkES template files
+camkes/templates/*.lds
+camkes/templates/*.c
+camkes/templates/*.h
+camkes/templates/*.cmake
+camkes/templates/*.cakeml
+camkes/templates/*.sml
+camkes/templates/*.thy
+camkes/templates/*.dot
+camkes/templates/*.cdl

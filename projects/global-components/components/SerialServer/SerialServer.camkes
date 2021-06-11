@@ -1,0 +1,50 @@
+/*
+ * Copyright 2018, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+#include <plat/serial.h>
+
+import <GetChar.idl4>;
+import <PutChar.idl4>;
+import <Batch.idl4>;
+import <Timer.idl4>;
+import <serial.camkes>;
+import <VirtQueue/VirtQueue.camkes>;
+
+component SerialServer {
+    control;
+    has mutex serial;
+    provides PutChar processed_putchar;
+    provides PutChar raw_putchar;
+    provides Batch processed_batch;
+    provides Batch raw_batch;
+    provides GetChar getchar;
+    uses Timer timeout;
+
+    /* Virtqueue connection to faciliate read and write */
+    maybe uses VirtQueueDev read;
+    maybe uses VirtQueueDev write;
+    //emits Callback self;
+    emits Callback self_read;
+    emits Callback self_write;
+
+    //maybe consumes Callback serial_wait;
+    maybe consumes Callback serial_write_wait;
+    maybe consumes Callback serial_read_wait;
+
+    /* Size of the driver's heap */
+    attribute int heap_size = 16 * 1024;
+
+    HARDWARE_SERIAL_INTERFACES
+    HARDWARE_SERIAL_ATTRIBUTES
+
+    composition {
+        HARDWARE_SERIAL_COMPOSITION
+    }
+
+    configuration {
+        HARDWARE_SERIAL_CONFIG
+    }
+}

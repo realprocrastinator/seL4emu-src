@@ -1,0 +1,18 @@
+#
+# Copyright 2020, Data61, CSIRO (ABN 41 687 119 230)
+#
+# SPDX-License-Identifier: BSD-2-Clause
+#
+
+linux
+configs
+liblwip/lwip-1.4.1
+lwipopts.h
+tools/elf/relocs
+*bzimage
+*.cpio
+apps/vm/cma34cr_centos/centos-kernel-config
+liblwip/include/arch/perf.h
+liblwip/include/lwip/arch/cc.h
+components/PicoServer/include/khash.h
+.gitignore

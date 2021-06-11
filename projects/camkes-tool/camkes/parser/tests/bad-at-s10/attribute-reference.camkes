@@ -1,0 +1,20 @@
+/*
+ * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+component B {
+    attribute string b_str;
+}
+
+component A {
+    attribute string a_str;
+
+    composition {
+        component B b;
+    }
+    configuration {
+        b.b_str <- a_str;
+    }
+}
+assembly { composition {}}

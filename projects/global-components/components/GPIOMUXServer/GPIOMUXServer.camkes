@@ -1,0 +1,38 @@
+/*
+ * Copyright 2019, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+#include <plat/gpio.h>
+#include <plat/mux.h>
+#include <camkes-single-threaded.h>
+#include <camkes-GPIOServer.h>
+#include <camkes-MUXServer.h>
+
+
+component GPIOMUXServer {
+    single_threaded_component()
+    GPIOServer_server_interfaces(the_gpio)
+    MUXServer_server_interfaces(the_mux)
+
+    HARDWARE_GPIO_INTERFACES
+    HARDWARE_GPIO_ATTRIBUTES
+
+    HARDWARE_MUX_INTERFACES
+    HARDWARE_MUX_ATTRIBUTES
+
+    composition {
+        HARDWARE_GPIO_COMPOSITION
+        HARDWARE_MUX_COMPOSITION
+        MUXServer_server_connections(the_mux)
+        GPIOServer_server_connections(the_gpio)
+    }
+
+    configuration {
+        HARDWARE_GPIO_CONFIG
+        HARDWARE_MUX_CONFIG
+        MUXServer_server_configurations(the_mux)
+        GPIOServer_server_configurations(the_gpio)
+    }
+}

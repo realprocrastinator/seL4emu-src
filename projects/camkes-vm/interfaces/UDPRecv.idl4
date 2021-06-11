@@ -1,0 +1,9 @@
+/*
+ * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
+procedure UDPRecv {
+    int poll(out unsigned int len, out uint16_t port, out uint32_t ip4addr);
+};

@@ -1,0 +1,14 @@
+/*
+ * Copyright 2019, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+procedure Clock {
+    include <platsupport/plat/clock.h>;
+    int init_clock(clk_id_t clk_id);
+    int set_gate_mode(clock_gate_t gate, clock_gate_mode_t mode);
+    freq_t get_freq(clk_id_t clk_id);
+    freq_t set_freq(clk_id_t clk_id, freq_t hz);
+    int register_child(clk_id_t parent, clk_id_t child);
+};

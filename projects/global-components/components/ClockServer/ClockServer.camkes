@@ -1,0 +1,37 @@
+/*
+ * Copyright 2019, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+#include <plat/clock.h>
+#include <camkes-single-threaded.h>
+#include <camkes-ClockServer.h>
+
+import <Clock.idl4>;
+HARDWARE_CLOCK_EXTRA_IMPORTS
+
+HARDWARE_CLOCK_COMPONENT
+
+component ClockServer {
+    single_threaded_component()
+    ClockServer_server_interfaces(the_clock)
+
+    HARDWARE_CLOCK_INTERFACES
+
+    /* These additional interfaces need to be connected to other components,
+       see each platform's respective clock.h file */
+    HARDWARE_CLOCK_EXTRA_INTERFACES
+
+    HARDWARE_CLOCK_ATTRIBUTES
+
+    composition {
+        HARDWARE_CLOCK_COMPOSITION
+        ClockServer_server_connections(the_clock)
+    }
+
+    configuration {
+        HARDWARE_CLOCK_CONFIG
+        ClockServer_server_configurations(the_clock)
+    }
+}

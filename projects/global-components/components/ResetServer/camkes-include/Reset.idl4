@@ -1,0 +1,11 @@
+/*
+ * Copyright 2020, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+procedure Reset {
+    include <platsupport/reset.h>;
+    int assert_reset(in reset_id_t id);
+    int deassert_reset(in reset_id_t id);
+};

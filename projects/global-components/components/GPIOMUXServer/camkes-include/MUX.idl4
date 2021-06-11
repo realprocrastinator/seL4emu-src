@@ -1,0 +1,11 @@
+/*
+ * Copyright 2019, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+procedure MUX {
+    include <platsupport/mux.h>;
+    int feature_enable(in mux_feature_t mux_feature, in mux_gpio_dir_t mux_gpio_dir);
+    int feature_disable(in mux_feature_t mux_feature);
+};

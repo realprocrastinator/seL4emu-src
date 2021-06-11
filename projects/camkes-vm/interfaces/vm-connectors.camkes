@@ -1,0 +1,25 @@
+/*
+ * Copyright 2019, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+/**
+* seL4VMDTBPassthrough
+*/
+connector seL4VMDTBPassthrough {
+    from Procedure with 0 threads;
+    to Procedure;
+
+    attribute string isabelle_connector_spec = "\<lparr>
+        connector_type = NativeConnector,
+        connector_interface = RPCInterface,
+        connector_access = \<lparr>
+            access_from_to   = {},
+            access_to_from   = {},
+            access_from_from = {},
+            access_to_to     = {},
+            access_from_conn = {},
+            access_to_conn   = {}
+        \<rparr> \<rparr>";
+}

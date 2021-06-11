@@ -1,0 +1,30 @@
+/*
+ * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+connector Conn {
+    from Procedure;
+    to Procedure;
+}
+
+procedure P {
+    void foo();
+}
+
+component Foo {
+    uses P p;
+    uses P q;
+}
+
+component Bar {
+    provides P p;
+}
+
+assembly {
+    composition {
+        component Foo f;
+        component Bar b;
+        connection Conn c1(from f.p, to b.p);
+    }
+}

@@ -1,0 +1,18 @@
+/*
+ * Copyright 2018, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+component PIT {
+    hardware;
+    provides IOPort command;
+    provides IOPort channel0;
+    emits PITIRQ irq;
+    attribute string command_attributes = "0x43:0x43";
+    attribute string channel0_attributes = "0x40:0x40";
+    attribute string irq_irq_type = "isa";
+    attribute int irq_irq_ioapic = 0;
+    attribute int irq_irq_ioapic_pin = 2;
+    attribute int irq_irq_vector = 2;
+}

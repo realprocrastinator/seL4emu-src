@@ -1,0 +1,23 @@
+# Copyright 2020, Data61, CSIRO (ABN 41 687 119 230)
+#
+# SPDX-License-Identifier: BSD-2-Clause
+
+capDL-tool/.stack-work/*
+.git*
+VERSION
+CHANGES
+*LICENSE_*.txt
+.licenseignore
+.reuse/dep5
+*.pyc
+*.gitignore
+*.bin
+capDL-tool/parse-capDL
+capDL-tool/*.right
+capDL-tool/*.parse
+capDL-tool/*.xml
+capDL-tool/*.test-OK
+capDL-tool/doc/tex/imgs/*
+capDL-tool/camkes-adder-arm.*
+python-capdl-tool/.hypothesis
+object_sizes/object_sizes.yaml

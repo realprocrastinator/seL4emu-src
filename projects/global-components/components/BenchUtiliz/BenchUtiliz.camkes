@@ -1,0 +1,35 @@
+/*
+ * Copyright 2020, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+import <std_connector.camkes>;
+import <SerialServer/SerialServer.camkes>;
+import <TimeServer/TimeServer.camkes>;
+import <global-connectors.camkes>;
+
+procedure IdleThread {
+	void start();
+	void stop(out uint64_t total, out uint64_t kernel, out uint64_t idle);
+};
+
+component BenchUtiliz {
+    control;
+    maybe uses PutChar serial_putchar;
+    maybe uses GetChar serial_getchar;
+
+    provides IdleThread idle;
+
+    emits Callback bench_from;
+    consumes Callback bench_to;
+
+    emits Trace trace_start;
+    emits Trace trace_stop;
+
+    attribute int bench_to_priority = 1;
+
+    composition {
+        connection seL4Notification idle_thread(from bench_from, to bench_to);
+    }
+}

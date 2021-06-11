@@ -1,0 +1,17 @@
+/*
+ * Copyright 2020, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+import <Reset.idl4>;
+
+connector ResetServerInit {
+    from Event with 0 threads;
+    to Event with 0 threads;
+}
+
+connector ResetServerClientInit {
+    from Event with 0 threads;
+    to Event with 0 threads;
+}

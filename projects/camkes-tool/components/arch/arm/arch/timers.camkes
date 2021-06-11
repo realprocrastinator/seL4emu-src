@@ -1,0 +1,8 @@
+/*
+ * Copyright 2019, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+/* Left intentionally empty, there are no ARM timer hardware components,
+ * the seL4DTBHardware connector initialises the hardware resources for us instead. */

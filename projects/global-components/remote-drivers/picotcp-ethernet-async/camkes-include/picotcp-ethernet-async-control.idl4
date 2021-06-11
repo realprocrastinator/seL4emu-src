@@ -1,0 +1,12 @@
+/*
+ * Copyright 2020, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+
+import <VirtQueue/VirtQueue.camkes>;
+
+procedure picotcp_ethernet_async_control {
+    void mac(out uint8_t b1, out uint8_t b2, out uint8_t b3, out uint8_t b4, out uint8_t b5, out uint8_t b6);
+};

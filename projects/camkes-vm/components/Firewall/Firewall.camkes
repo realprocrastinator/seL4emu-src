@@ -1,0 +1,14 @@
+/*
+ * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
+import <Ethdriver.idl4>;
+
+component Firewall {
+    uses Ethdriver ethdriver;
+    provides Ethdriver client;
+    emits HasData dummy;
+    consumes HasData ethdriver_has_data;
+}

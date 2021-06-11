@@ -1,0 +1,65 @@
+# Copyright 2020, Data61, CSIRO (ABN 41 687 119 230)
+#
+# SPDX-License-Identifier: BSD-2-Clause
+
+# Actions to run on Push and Pull Request
+name: Build
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  pdf:
+    name: Language Spec PDF
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install texlive and pandoc
+      run: |
+        sudo apt-get install pandoc texlive-latex-extra texlive-fonts-extra
+    - name: Build PDF
+      run: |
+        cd capDL-tool/doc/tex
+        make
+
+  python-capdl-tool:
+    name: Python build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ '2.x', '3.x' ]
+      fail-fast: false
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install python packages
+      run: |
+        cd python-capdl-tool
+        pip install -r requirements.txt
+        pip install nose future
+    - name: Run tests
+      run: |
+        cd python-capdl-tool/tests
+        nosetests --exe
+
+  capDL-tool:
+    name: capDL-tool (ghc)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: |
+        sudo apt-get install libxml2-utils
+    - uses: actions/setup-haskell@v1.1.4
+      with:
+        enable-stack: true
+        stack-setup-ghc: true
+    - name: Build and test
+      run: |
+        cd capDL-tool
+        make clean sandbox all
+        make tests

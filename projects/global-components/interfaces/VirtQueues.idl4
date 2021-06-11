@@ -1,0 +1,20 @@
+/*
+ * Copyright 2018, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+/*
+ * The procedures for the Queue Driver role
+ */
+procedure VirtQueueDrv {}
+
+/*
+ * The procedures for the Queue Device role
+ */
+procedure VirtQueueDev {}
+
+/*
+ * The procedures for the Queue Init role
+ */
+procedure VirtQueue {}

@@ -1,0 +1,10 @@
+#
+# Copyright 2020, Data61, CSIRO (ABN 41 687 119 230)
+#
+# SPDX-License-Identifier: BSD-2-Clause
+#
+
+# Stackage LTS Haskell 9.21 (ghc-8.0.2)
+resolver: lts-9.21
+
+local-bin-path: .

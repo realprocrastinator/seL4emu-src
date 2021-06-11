@@ -1,0 +1,10 @@
+/*
+ * Copyright 2020, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+procedure BPMP {
+    /* This is intended to be used with the included library in the component */
+    int call(in int mrq, in size_t tx_size, out size_t bytes_rxd);
+};

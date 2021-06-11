@@ -1,0 +1,67 @@
+/* We preprocess this file to extract the sizes of objects for use in camkes/capdl */
+#define __ASSEMBLER__
+#include <autoconf.h>
+#include <sel4/constants.h>
+#include <sel4/sel4_arch/constants.h>
+#include <sel4/mode/types.h>
+seL4_TCBObject: seL4_TCBBits
+seL4_EndpointObject: seL4_EndpointBits
+seL4_NotificationObject: seL4_NotificationBits
+seL4_SmallPageObject: seL4_PageBits
+seL4_LargePageObject: seL4_LargePageBits
+seL4_ASID_Pool: seL4_ASIDPoolBits
+seL4_ASID_Table: seL4_ASIDPoolIndexBits
+seL4_Slot: seL4_SlotBits
+seL4_Value_MinUntypedBits: seL4_MinUntypedBits
+seL4_Value_MaxUntypedBits: seL4_MaxUntypedBits
+seL4_Value_BadgeBits: seL4_BadgeBits
+#ifdef seL4_ReplyBits
+seL4_RTReplyObject: seL4_ReplyBits
+#endif
+#ifdef seL4_VCPUBits
+seL4_VCPU: seL4_VCPUBits
+#endif
+#ifdef seL4_PageTableBits
+seL4_PageTableObject: seL4_PageTableBits
+#endif
+#ifdef seL4_PageDirBits
+seL4_PageDirectoryObject: seL4_PageDirBits
+#endif
+#ifdef seL4_SectionBits
+seL4_ARM_SectionObject: seL4_SectionBits
+#endif
+#ifdef seL4_SuperSectionBits
+seL4_ARM_SuperSectionObject: seL4_SuperSectionBits
+#endif
+#ifdef seL4_HugePageBits
+seL4_HugePageObject: seL4_HugePageBits
+#endif
+#ifdef seL4_PGDBits
+seL4_AARCH64_PGD: seL4_PGDBits
+#endif
+#ifdef seL4_PUDBits
+seL4_AARCH64_PUD: seL4_PUDBits
+#endif
+#ifdef seL4_IOPageTableBits
+seL4_IOPageTableObject: seL4_IOPageTableBits
+#endif
+#ifdef seL4_PDPTBits
+seL4_X64_PDPT: seL4_PDPTBits
+#endif
+#ifdef seL4_PML4Bits
+seL4_X64_PML4: seL4_PML4Bits
+#endif
+#ifdef seL4_MinSchedContextBits
+seL4_SchedContextObject: seL4_MinSchedContextBits
+#endif
+
+/* These need not, and should not, be allocated */
+seL4_IOPorts: 0
+seL4_IODevice: 0
+seL4_ARMIODevice: 0
+seL4_IRQ: 0
+seL4_IOAPICIRQ: 0
+seL4_MSIIRQ: 0
+seL4_ARMIRQ: 0
+seL4_ARMSID: 0
+seL4_ARMCB: 0

@@ -1,0 +1,29 @@
+/*
+ * Copyright 2019, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
+import <Ethdriver.idl4>;
+import <PicoControl.idl4>;
+import <PicoSend.idl4>;
+import <PicoRecv.idl4>;
+import <Timer.idl4>;
+#include <camkes-single-threaded.h>
+#include <camkes-picotcp-socket-sync.h>
+#include <camkes-picotcp-base.h>
+
+component PicoServer {
+    single_threaded_component()
+    picotcp_socket_sync_server_interfaces(pico)
+    picotcp_base_interfaces(pico_base)
+
+    uses Ethdriver ethdriver;
+
+    composition {
+        picotcp_socket_sync_server_connections(pico)
+    }
+    configuration {
+        picotcp_socket_sync_server_configurations(pico)
+    }
+}

@@ -1,0 +1,19 @@
+/*
+ * Copyright 2020, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+import <PicoControl.idl4>;
+import <PicoSend.idl4>;
+import <PicoRecv.idl4>;
+
+connector PicotcpSocketSyncServerInit {
+    from Event with 0 threads;
+    to Event with 0 threads;
+}
+
+connector PicotcpSocketSyncClientInit {
+    from Event with 0 threads;
+    to Event with 0 threads;
+}

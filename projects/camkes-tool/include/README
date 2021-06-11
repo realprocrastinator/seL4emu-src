@@ -1,0 +1,12 @@
+<!--
+     Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+
+     SPDX-License-Identifier: BSD-2-Clause
+-->
+
+This directory contains files that conceptually relate to the CAmkES runtime
+environment. For the most part you will need to pay this directory no mind.
+
+builtin/ - ADL/IDL files that are analogous to the C standard library. You
+    should arrange for this to be in the --import-path when runner the tools to
+    let users reference files in here with "import <...>" syntax.

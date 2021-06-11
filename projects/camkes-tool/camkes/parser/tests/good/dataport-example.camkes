@@ -1,0 +1,19 @@
+/*
+ * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+component A {
+    dataport Buf d;
+}
+connector Q {
+    from Dataport;
+    to Dataport;
+}
+assembly {
+    composition {
+        component A a1;
+        component A a2;
+        connection Q c(from a1.d, to a2.d);
+    }
+}

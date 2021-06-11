@@ -1,0 +1,24 @@
+/*
+ * Copyright 2017, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
+import <global-connectors.camkes>;
+import <VirtQueue/VirtQueue.camkes>;
+import <seL4VMDTBPassthrough.idl4>;
+
+import <FileServerInterface.camkes>;
+import <FileServer/FileServer.camkes>;
+import <SerialServer/SerialServer.camkes>;
+import <TimeServer/TimeServer.camkes>;
+
+#if TK1DEVICEFWD
+import <gen_fwd.idl4>;
+#endif
+
+#include <configurations/vm.h>
+
+component VM {
+    VM_INIT_DEF()
+}

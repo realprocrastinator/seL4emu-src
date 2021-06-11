@@ -1,0 +1,80 @@
+/*
+ * Copyright 2019, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *
+ */
+syntax = "proto3";
+
+enum Action {
+    ALLOCATE = 0;
+    FREE = 1;
+};
+
+/* allocate a memory region */
+message MemoryAllocMessage {
+    uint64 address = 1;
+    uint64 size_bits = 2;
+    uint64 type = 3;
+    Action action = 4;
+};
+
+/* allocate IRQs */
+/* x86 MSI IRQs */
+message IrqAllocMessagex86_MSI {
+    uint64 pci_bus = 1;
+    uint64 pci_dev = 2;
+    uint64 pci_func = 3;
+    uint64 handle = 4;
+    uint64 vector = 5;
+};
+
+/* x86 IOAPIC IRQs */
+message IrqAllocMessagex86_IOAPIC {
+    uint64 ioapic = 1;
+    uint64 pin = 2;
+    uint64 level = 3;
+    uint64 polarity = 4;
+    uint64 vector = 5;
+};
+
+/* IRQs represented only by a number, and also ARM IRQs with a trigger. */
+message IrqAllocMessageSimple {
+    bool setTrigger = 1;
+    uint64 irq = 2;
+    uint64 trigger = 3;
+};
+
+/* contains all IRQ messages */
+message IrqAllocMessage {
+    oneof type {
+        IrqAllocMessagex86_MSI msi = 1;
+        IrqAllocMessagex86_IOAPIC ioapic = 2;
+        IrqAllocMessageSimple simple = 3;
+    };
+};
+
+/* allocate IO port ranges */
+message IOPortMessage {
+    uint32 start = 1;
+    uint32 end = 2;
+};
+
+message ReturnMessage {
+    uint32 errorCode = 1;
+    uint64 cookie = 2;
+};
+
+/*
+ * this is the only message type that's actually sent,
+ * all the other messages are just contained within
+ * this one.
+ */
+message RpcMessage {
+    oneof msg {
+        ReturnMessage ret = 1;
+        MemoryAllocMessage memory = 2;
+        IrqAllocMessage irq = 3;
+        IOPortMessage ioport = 4;
+    };
+};

@@ -1,0 +1,95 @@
+/*
+ * Copyright 2019, Data61, CSIRO (ABN 41 687 119 230)
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
+
+#include <plat/eth_devices.h>
+#include <camkes-single-threaded.h>
+#include <camkes-dynamic-untyped-allocators.h>
+#include <camkes-x86-iospace-dma.h>
+import <Ethdriver.idl4>;
+HARDWARE_ETHERNET_EXTRA_IMPORTS
+
+component Ethdriver82574 {
+    single_threaded_component()
+    dynamic_untyped_allocators_interfaces(init_dynamic)
+    x86_iospace_dma_interfaces(init_iospaces, "0x12:0x0:0x19:0")
+
+    provides Ethdriver client;
+
+    /*
+     * The promiscuous mode is set according to whatever configuration you want, 1 by default.
+     */
+     attribute int promiscuous_mode = 1;
+
+    consumes IRQ irq;
+    dataport Buf(0x20000) EthDriver;
+
+
+    composition {
+        dynamic_untyped_allocators_connections(init_dynamic)
+        x86_iospace_dma_connections(init_iospaces)
+
+
+    }
+    configuration {
+        dynamic_untyped_allocators_configuration(init_dynamic)
+        x86_iospace_dma_configuration(init_iospaces)
+   }
+}
+
+component Ethdriver82580 {
+    single_threaded_component()
+
+    provides Ethdriver client;
+
+    /*
+     * The promiscuous mode is set according to whatever configuration you want, 1 by default.
+     */
+     attribute int promiscuous_mode = 1;
+
+    consumes IRQ irq;
+    dataport Buf(0x80000) EthDriver;
+
+    attribute int iospace_id;
+    /* format for bdf is "BUS:DEV.fun" where BUS and DEV are hex and FUN is decimal */
+    attribute string pci_bdf;
+}
+
+/* Example hardware components that contain minimal necessary spec for different ethdrivers */
+component HWEthDriver82574 {
+    hardware;
+    emits IRQ irq;
+    dataport Buf(0x20000) mmio;
+};
+
+component HWEthDriver82580 {
+    hardware;
+    emits IRQ irq;
+    dataport Buf(0x80000) mmio;
+};
+
+/* This is a macro used to define the hardware CAmkES component for each ARM platform */
+HARDWARE_ETHERNET_COMPONENT
+
+component EthdriverARMPlat {
+    single_threaded_component()
+
+    provides Ethdriver client;
+
+    /*
+     * This attribute is set according to whatever configuration you want.
+     */
+    attribute int promiscuous_mode;
+
+    HARDWARE_ETHERNET_INTERFACES
+
+    composition {
+        HARDWARE_ETHERNET_COMPOSITION
+    }
+
+    configuration {
+        HARDWARE_ETHERNET_CONFIG
+    }
+};
