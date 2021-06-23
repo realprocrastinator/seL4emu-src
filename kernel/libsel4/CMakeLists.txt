@@ -177,7 +177,7 @@ add_custom_target(
 )
 
 add_library(sel4 src/sel4_bootinfo.c)
-target_link_libraries(sel4 PRIVATE kernel_Config sel4_Config sel4_autoconf)
+target_link_libraries(sel4 PRIVATE kernel_Config sel4_Config sel4_autoconf PUBLIC sel4emu)
 target_include_directories(
     sel4
     PUBLIC

@@ -21,8 +21,8 @@
 #error Unknown method for kernel syscalls
 #endif
 
-// TODO: should declared this as a lib path, and let the compiler search automatically
-#include "/home/kukuku/UNSW/cs9991/sel4-projects/sel4-emu-stub/projects/seL4_libs/libsel4emu/include/sel4emu.h"
+// TODO: only include this header file if CONFIG_SEL4_EMU is set 
+#include <sel4emu.h>
 
 LIBSEL4_INLINE_FUNC void seL4_Send(seL4_CPtr dest, seL4_MessageInfo_t msgInfo)
 {
