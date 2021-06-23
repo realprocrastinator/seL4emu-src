@@ -15,10 +15,10 @@ add_compile_options(${compile_options})
 
 add_library(sel4emu STATIC src/sel4emu.c)
 target_include_directories(
-    sel4emu 
+    sel4emu
     PUBLIC 
       include
 )
 
-add_dependencies(sel4emu muslc)
+add_dependencies(sel4emu muslc minimusllibc)
 target_link_libraries(sel4emu PUBLIC muslc minimusllibc)

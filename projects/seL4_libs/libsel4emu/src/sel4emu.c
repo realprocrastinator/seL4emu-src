@@ -31,7 +31,6 @@ void seL4emu_DebugPutChar(char c) {
     return;
   }
 
-
   ret = mini_write(data_socket, &c, 2);
   if (ret < 0) {
     // TODO: error report

@@ -19,5 +19,6 @@ add_subdirectory(libsel4test)
 add_subdirectory(libsel4sync)
 add_subdirectory(libsel4muslcsys)
 add_subdirectory(libsel4bench)
+# this is only for the emulation configuration
 add_subdirectory(libsel4emu)
 add_subdirectory(libminimusllibc)

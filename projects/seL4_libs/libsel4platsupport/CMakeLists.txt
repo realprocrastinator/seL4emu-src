@@ -70,17 +70,34 @@ target_include_directories(
 if(NOT "${KernelArmMach}" STREQUAL "")
     target_include_directories(sel4platsupport PUBLIC include "mach_include/${KernelArmMach}")
 endif()
-target_link_libraries(
-    sel4platsupport
-    PUBLIC
-        muslc
-        sel4
-        sel4runtime
-        sel4simple
-        utils
-        sel4vspace
-        platsupport
-        sel4simple-default
-        sel4emu
-    PRIVATE sel4platsupport_Config sel4muslcsys_Config sel4_autoconf
-)
+
+if (seL4UseEmu)
+    target_link_libraries(
+        sel4platsupport
+        PUBLIC
+            muslc
+            sel4
+            sel4runtime
+            sel4simple
+            utils
+            sel4vspace
+            platsupport
+            sel4simple-default
+            sel4emu
+        PRIVATE sel4platsupport_Config sel4muslcsys_Config sel4_autoconf
+    )
+else()
+    target_link_libraries(
+        sel4platsupport
+        PUBLIC
+            muslc
+            sel4
+            sel4runtime
+            sel4simple
+            utils
+            sel4vspace
+            platsupport
+            sel4simple-default
+        PRIVATE sel4platsupport_Config sel4muslcsys_Config sel4_autoconf
+    )
+endif()

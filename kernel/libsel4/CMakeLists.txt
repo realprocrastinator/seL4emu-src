@@ -10,6 +10,13 @@ project(libsel4 C)
 
 set(configure_string "")
 
+# TODO: currently the emulation part is integrated in the libseL4 code for simplicity as we can directly use the build system without modifying lots of things. But in the future, we should make the `application` be linked with `libsel4emu` or `libsel4` interchangably to make configuration more felxible.
+config_option(
+    seL4UseEmu SEL4_USE_EMULATION "Use the kernel emulation configuration."
+    DEFAULT OFF
+)
+message("seL4UseEmu is: ${seL4UseEmu}")
+
 config_choice(
     LibSel4FunctionAttributes
     LIB_SEL4_FUNCTION_ATTRIBUTE
@@ -49,6 +56,8 @@ endif()
 
 RequireFile(SYSCALL_STUB_GEN_PATH syscall_stub_gen.py PATHS tools)
 
+# debug
+message("configure_string is: ${configure_string}")
 add_config_library(sel4 "${configure_string}")
 
 # Currently we use autoconf.h, so generate one of those
@@ -177,7 +186,15 @@ add_custom_target(
 )
 
 add_library(sel4 src/sel4_bootinfo.c)
-target_link_libraries(sel4 PRIVATE kernel_Config sel4_Config sel4_autoconf PUBLIC sel4emu)
+target_link_libraries(sel4 PRIVATE kernel_Config sel4_Config sel4_autoconf)
+
+# TODO: make sure that the libsel4 can use the libsel4emu header file, as currently the emulation code is intergrated in the libsel4 code. But in the future we won't need to do this once make the linking more flexible.
+if(seL4UseEmu)
+    target_link_libraries(sel4 PRIVATE kernel_Config sel4_Config sel4_autoconf PUBLIC sel4emu)
+else()
+    target_link_libraries(sel4 PRIVATE kernel_Config sel4_Config sel4_autoconf)
+endif()
+
 target_include_directories(
     sel4
     PUBLIC
