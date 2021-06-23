@@ -81,5 +81,6 @@ target_link_libraries(
         sel4vspace
         platsupport
         sel4simple-default
+        sel4emu
     PRIVATE sel4platsupport_Config sel4muslcsys_Config sel4_autoconf
 )

@@ -264,6 +264,7 @@ long sel4_vsyscall(long sysnum, ...)
     va_list al;
     va_start(al, sysnum);
     muslcsys_syscall_t syscall;
+
     if (sysnum < 0 || sysnum >= ARRAY_SIZE(syscall_table)) {
         int index = find_sparse_syscall(sysnum);
         if (index < 0) {

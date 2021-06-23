@@ -45,7 +45,7 @@
  *               |    Kernel ELF     | --> |  PD  |
  *               |                   |     +------+
  *               |                   |
- *   2^64 - 2^29 +-------------------+ PPTR_TOP / KERNEL_ELF_BASE
+ *   2^64 - 2^31 +-------------------+ PPTR_TOP / KERNEL_ELF_BASE
  *               |                   |
  *               |  Physical Memory  |
  *               |       Window      |
@@ -73,7 +73,7 @@
 
 /* The base address in virtual memory to use for the 1:1 physical memory
  * mapping. Our kernel window is 2^39 bits (2^9 * 1gb) and the virtual
- * address range is 48 bits. Therefore our base is 2^48 - 2^39 */
+ * address range is 64 bits. Therefore our base is 2^64 - 2^39 */
 #define PPTR_BASE UL_CONST(0xffffff8000000000)
 
 /* Below the main kernel window we have any slots for the TLB bitmap */
@@ -83,7 +83,7 @@
 /* The kernel binary itself is placed in the bottom 1gb of the top
  * 2gb of virtual address space. This is so we can use the 'kernel'
  * memory model of GCC, which requires all symbols to be linked
- * within the top 2GiB of memory. This is (2^48 - 2 ^ 31) */
+ * within the top 2GiB of memory. This is (2^64 - 2^31) */
 #define PPTR_TOP UL_CONST(0xffffffff80000000)
 
 /* The physical memory address to use for mapping the kernel ELF */
@@ -94,7 +94,7 @@
 
 /* Put the kernel devices at the very beginning of the top
  * 1GB. This means they are precisely after the kernel binary
- * region. This is 2^48 - 2^30 */
+ * region. This is 2^64 - 2^30 */
 #define KDEV_BASE UL_CONST(0xffffffffc0000000)
 
 /* The kernel log buffer is a large page mapped into the second index

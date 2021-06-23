@@ -21,6 +21,9 @@
 #error Unknown method for kernel syscalls
 #endif
 
+// TODO: should declared this as a lib path, and let the compiler search automatically
+#include "/home/kukuku/UNSW/cs9991/sel4-projects/sel4-emu-stub/projects/seL4_libs/libsel4emu/include/sel4emu.h"
+
 LIBSEL4_INLINE_FUNC void seL4_Send(seL4_CPtr dest, seL4_MessageInfo_t msgInfo)
 {
     x64_sys_send(seL4_SysSend, dest, msgInfo.words[0], seL4_GetMR(0), seL4_GetMR(1), seL4_GetMR(2), seL4_GetMR(3));
@@ -585,7 +588,10 @@ LIBSEL4_INLINE_FUNC void seL4_DebugPutChar(char c)
     seL4_Word unused4 = 0;
     seL4_Word unused5 = 0;
 
-    x64_sys_send_recv(seL4_SysDebugPutChar, c, &unused0, 0, &unused1, &unused2, &unused3, &unused4, &unused5, 0);
+    // x64_sys_send_recv(seL4_SysDebugPutChar, c, &unused0, 0, &unused1, &unused2, &unused3, &unused4, &unused5, 0);
+
+    seL4emu_DebugPutChar(c);
+
 }
 
 LIBSEL4_INLINE_FUNC void seL4_DebugPutString(char *str)

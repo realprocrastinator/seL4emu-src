@@ -1,0 +1,1 @@
+void seL4emu_DebugPutChar(char c);
