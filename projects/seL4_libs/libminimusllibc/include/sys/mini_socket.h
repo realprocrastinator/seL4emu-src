@@ -1,10 +1,7 @@
 #ifndef	_SYS_SOCKET_H
 #define	_SYS_SOCKET_H
-#ifdef __cplusplus
-extern "C" {
-#endif
 
-#include "../features.h"
+#include "../mini_features.h"
 
 #define __NEED_socklen_t
 #define __NEED_sa_family_t
@@ -15,9 +12,9 @@ extern "C" {
 #define __NEED_gid_t
 #define __NEED_struct_iovec
 
-#include "../bits/alltypes.h"
+#include "../bits/mini_alltypes.h"
 
-#include "../bits/socket.h"
+#include "../bits/mini_socket.h"
 
 struct msghdr {
 	void *msg_name;
@@ -407,7 +404,4 @@ __REDIR(recvmmsg, __recvmmsg_time64);
 #endif
 #endif
 
-#ifdef __cplusplus
-}
-#endif
 #endif

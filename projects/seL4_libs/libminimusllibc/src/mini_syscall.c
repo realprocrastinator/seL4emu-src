@@ -1,7 +1,6 @@
-// #define _BSD_SOURCE
-#include "../include/unistd.h"
-#include "internal_syscall.h"
-#include "../include/stdarg.h"
+#include "../include/mini_unistd.h"
+#include "mini_internal_syscall.h"
+#include "../include/mini_stdarg.h"
 
 #undef syscall
 

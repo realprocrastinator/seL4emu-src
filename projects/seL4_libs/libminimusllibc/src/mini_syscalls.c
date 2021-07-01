@@ -1,10 +1,10 @@
-#include "../include/unistd.h"
-#include "../include/sys/syscall.h"
-#include "../include/errno.h"
-#include <stdarg.h>
-#include "../include/fcntl.h"
+#include "../include/mini_unistd.h"
+#include "../include/sys/mini_syscall.h"
+#include "../include/mini_errno.h"
+#include "../include/mini_stdarg.h"
+#include "../include/mini_fcntl.h"
 #include "../include/mini_syscalls.h"
-#include "internal_syscall.h"
+#include "mini_internal_syscall.h"
 
 ssize_t mini_read(int fd, void *buf, size_t count)
 {

@@ -6,7 +6,7 @@
 #include <mini_syscalls.h>
 
 #define SOCKET_NAME "/tmp/uds-test.socket"
-#define BUFFER_SIZE 12
+#define BUFFER_SIZE 2
 
 void seL4emu_DebugPutChar(char c) {
   struct sockaddr_un addr;
@@ -16,7 +16,7 @@ void seL4emu_DebugPutChar(char c) {
 
   data_socket = mini_socket(AF_UNIX, SOCK_SEQPACKET, 0);
   if (data_socket < 0) {
-    // TODO: error report
+    mini_perror("Failed to create the uds socket");
     return;
   }
 
@@ -27,29 +27,29 @@ void seL4emu_DebugPutChar(char c) {
 
   ret = mini_connect(data_socket, (const struct sockaddr*) &addr, sizeof(addr));
   if (ret < 0 ) {
-    // TODO: error report
+    mini_perror("Failed to connect the uds socket");
     return;
   }
 
   ret = mini_write(data_socket, &c, 2);
   if (ret < 0) {
-    // TODO: error report
+    mini_perror("Failed to write to the uds socket");
     return;
   }
 
-    // receive result
+  // receive result
   ret = mini_read(data_socket, buffer, 2);
-  if (ret == -1) {
-    // TODO: error report
+  if (ret < 0) {
+    mini_perror("Failed to read from the uds socket");
     return;
   }
 
   // ensure the buffer is null terminated
   buffer[BUFFER_SIZE - 1] = 0;
 
-  ret = mini_write(1, buffer, 2);
+  ret = mini_write(STDOUT_FILENO, buffer, BUFFER_SIZE);
   if (ret < 0) {
-    // TODO: error report
+    mini_perror("Failed to write to the stdout");
     return;
   }
 

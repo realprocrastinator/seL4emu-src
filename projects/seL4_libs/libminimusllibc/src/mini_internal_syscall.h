@@ -1,10 +1,10 @@
-#ifndef _INTERNAL_SYSCALL_H
-#define _INTERNAL_SYSCALL_H
+#ifndef _MINI_INTERNAL_SYSCALL_H
+#define _MINI_INTERNAL_SYSCALL_H
 
-#include "../include/features.h"
-#include "../include/errno.h"
-#include "../include/sys/syscall.h"
-#include "syscall_x86_64.h"
+#include "../include/mini_features.h"
+#include "../include/mini_errno.h"
+#include "../include/sys/mini_syscall.h"
+#include "mini_syscall_x86_64.h"
 
 #ifndef SYSCALL_RLIM_INFINITY
 #define SYSCALL_RLIM_INFINITY (~0ULL)

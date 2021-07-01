@@ -1,11 +1,7 @@
 #ifndef	_FCNTL_H
 #define	_FCNTL_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include "features.h"
+#include "mini_features.h"
 
 #define __NEED_off_t
 #define __NEED_pid_t
@@ -17,9 +13,9 @@ extern "C" {
 #define __NEED_struct_iovec
 #endif
 
-#include "bits/alltypes.h"
+#include "bits/mini_alltypes.h"
 
-#include "bits/fcntl.h"
+#include "bits/mini_fcntl.h"
 
 struct flock {
 	short l_type;
@@ -207,10 +203,6 @@ ssize_t tee(int, int, size_t, unsigned);
 #define posix_fadvise64 posix_fadvise
 #define posix_fallocate64 posix_fallocate
 #define off64_t off_t
-#endif
-
-#ifdef __cplusplus
-}
 #endif
 
 #endif

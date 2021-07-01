@@ -1,5 +1,4 @@
-// #include "pthread_impl.h"
-#include "internal_syscall.h"
+#include "mini_internal_syscall.h"
 
 hidden long __mini_syscall_cp_c();
 

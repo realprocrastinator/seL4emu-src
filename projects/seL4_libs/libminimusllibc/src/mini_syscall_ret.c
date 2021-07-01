@@ -1,5 +1,5 @@
-#include "../include/errno.h"
-#include "internal_syscall.h"
+#include "../include/mini_errno.h"
+#include "mini_internal_syscall.h"
 
 long __mini_syscall_ret(unsigned long r)
 {

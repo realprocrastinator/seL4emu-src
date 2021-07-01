@@ -1,11 +1,7 @@
 #ifndef	_UNISTD_H
 #define	_UNISTD_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include "features.h"
+#include "mini_features.h"
 
 #define STDIN_FILENO  0
 #define STDOUT_FILENO 1
@@ -30,7 +26,7 @@ extern "C" {
 #define __NEED_intptr_t
 #define __NEED_useconds_t
 
-#include "bits/alltypes.h"
+#include "bits/mini_alltypes.h"
 
 int pipe(int [2]);
 int pipe2(int [2], int);
@@ -253,9 +249,7 @@ pid_t gettid(void);
 
 #define _POSIX2_C_BIND          _POSIX_VERSION
 
-#include "bits/posix.h"
-
-
+#include "bits/mini_posix.h"
 
 #define _PC_LINK_MAX	0
 #define _PC_MAX_CANON	1
@@ -463,9 +457,5 @@ pid_t gettid(void);
 #define _CS_POSIX_V7_LPBIG_OFFBIG_LINTFLAGS	1147
 #define _CS_V6_ENV	1148
 #define _CS_V7_ENV	1149
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

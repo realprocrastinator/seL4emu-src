@@ -1,5 +1,5 @@
-#include "unistd.h"
-#include "./sys/socket.h"
+#include "mini_unistd.h"
+#include "sys/mini_socket.h"
 
 // I/O operations
 ssize_t mini_read(int fd, void *buf, size_t count);
@@ -7,6 +7,9 @@ ssize_t mini_write(int fd, const void *buf, size_t count);
 int mini_close(int fd);
 int mini_open(const char *filename, int flags, ...);
 int mini_unlink(const char *path);
+
+// error printing
+void mini_perror(const char* msg);
 
 // socket operations
 int mini_socket (int, int, int);

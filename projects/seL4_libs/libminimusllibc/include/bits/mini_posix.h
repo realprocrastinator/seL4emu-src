@@ -1,0 +1,2 @@
+#define _MINI_POSIX_V6_LP64_OFF64  1
+#define _MINI_POSIX_V7_LP64_OFF64  1

@@ -1,6 +1,6 @@
 CC = gcc
-CCFLAG = -Wall -g -O0
-CCFLAGS += ${NK_CFLAGS}
+CCFLAG = -Wall -g -O0 -fno-stack-protector
+CCFLAG += ${NK_CFLAGS}
 
 ifeq (${SOURCE_DIR},)
 		SOURCE_DIR = $(shell pwd)
@@ -20,8 +20,9 @@ all : build_dir ${BUILD_DIR}/build/libminimusllibc.a
 
 build_dir :
 		mkdir -p $(BUILD_DIR)/build
-		cp -r $(SOURCE_DIR)/include $(BUILD_DIR)/build/include
-		cp -r $(SOURCE_DIR)/src $(BUILD_DIR)/build/src
+		rm -rf $(BUILD_DIR)/build/*
+		cp -r $(SOURCE_DIR)/include $(BUILD_DIR)/build/
+		cp -r $(SOURCE_DIR)/src $(BUILD_DIR)/build/
 		echo $(LIBOBJDIR)
 
 $(LIBOBJDIR)/%.o : $(LIBSRCDIR)/%.c

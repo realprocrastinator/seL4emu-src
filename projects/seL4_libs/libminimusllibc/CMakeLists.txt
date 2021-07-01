@@ -26,7 +26,7 @@ add_custom_command(
     COMMAND
         cp -r ${CMAKE_CURRENT_BINARY_DIR}/build/libminimusllibc.a ${CMAKE_CURRENT_BINARY_DIR}/libminimusllibc.a
     COMMAND
-        cp -r ${CMAKE_CURRENT_BINARY_DIR}/build/include ${CMAKE_CURRENT_BINARY_DIR}/include
+        cp -r ${CMAKE_CURRENT_BINARY_DIR}/build/include ${CMAKE_CURRENT_BINARY_DIR}/
 )
 
 add_custom_target(

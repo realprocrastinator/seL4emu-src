@@ -37,8 +37,7 @@ void __init_libc(char **envp, char *pn)
 
 	__init_tls(aux);
 
-	// TODO: disable stack smashing protector as va_list some how breaks the weak attribute of `init_ssp`, fix this later
-	// __init_ssp((void *)aux[AT_RANDOM]);
+	__init_ssp((void *)aux[AT_RANDOM]);
 
 	if (aux[AT_UID]==aux[AT_EUID] && aux[AT_GID]==aux[AT_EGID]
 		&& !aux[AT_SECURE]) return;
