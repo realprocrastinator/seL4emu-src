@@ -1,5 +1,8 @@
 # The goal of this lib is to make itself linked with `dl` which depends on gcc without messing things up!
 
+# TODO: 1) make ninja understand the change we made in the src code
+#       2) generate files directly to the build folders instead of copying
+
 cmake_minimum_required(VERSION 3.7.2)
 
 project(libminimusllibc C)

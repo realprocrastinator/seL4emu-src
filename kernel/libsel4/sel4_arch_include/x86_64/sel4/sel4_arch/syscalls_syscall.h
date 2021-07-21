@@ -18,9 +18,15 @@
 #define MCS_REPLY
 #endif
 
+// TODO: make `libsel4` and `libsel4emu` be linked interchangably by setting the configuration 
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <sel4emusyscalls.h>
+#endif
+
 static inline void x64_sys_send(seL4_Word sys, seL4_Word dest, seL4_Word info, seL4_Word msg0, seL4_Word msg1,
                                 seL4_Word msg2, seL4_Word msg3)
 {
+#ifndef CONFIG_SEL4_USE_EMULATION
     register seL4_Word mr0 asm("r10") = msg0;
     register seL4_Word mr1 asm("r8") = msg1;
     register seL4_Word mr2 asm("r9") = msg2;
@@ -40,12 +46,16 @@ static inline void x64_sys_send(seL4_Word sys, seL4_Word dest, seL4_Word info, s
         "r"(mr3)
         : "%rbx", "%rcx", "%r11"
     );
+#else
+    seL4emu_sys_send(sys, dest, info, msg0, msg1, msg2, msg3);
+#endif
 }
 
 #ifndef CONFIG_KERNEL_MCS
 static inline void x64_sys_reply(seL4_Word sys, seL4_Word info, seL4_Word msg0, seL4_Word msg1, seL4_Word msg2,
                                  seL4_Word msg3)
 {
+#ifndef CONFIG_SEL4_USE_EMULATION
     register seL4_Word mr0 asm("r10") = msg0;
     register seL4_Word mr1 asm("r8") = msg1;
     register seL4_Word mr2 asm("r9") = msg2;
@@ -64,11 +74,15 @@ static inline void x64_sys_reply(seL4_Word sys, seL4_Word info, seL4_Word msg0, 
         "r"(mr3)
         : "%rbx", "%rcx", "%r11"
     );
+#else
+    seL4emu_sys_reply(sys, info, msg0, msg1, msg2, msg3);
+#endif
 }
 #endif /* CONFIG_KERNEL_MCS */
 
 static inline void x64_sys_send_null(seL4_Word sys, seL4_Word dest, seL4_Word info)
 {
+#ifndef CONFIG_SEL4_USE_EMULATION
     asm volatile(
         "movq   %%rsp, %%rbx        \n"
         "syscall                    \n"
@@ -79,12 +93,16 @@ static inline void x64_sys_send_null(seL4_Word sys, seL4_Word dest, seL4_Word in
         "S"(info)
         : "%rcx", "%rbx", "%r11"
     );
+#else
+    seL4emu_sys_send_null(sys, dest, info);
+#endif
 }
 
 static inline void x64_sys_recv(seL4_Word sys, seL4_Word src, seL4_Word *out_badge, seL4_Word *out_info,
                                 seL4_Word *out_mr0, seL4_Word *out_mr1, seL4_Word *out_mr2, seL4_Word *out_mr3,
                                 LIBSEL4_UNUSED seL4_Word reply)
 {
+#ifndef CONFIG_SEL4_USE_EMULATION
     register seL4_Word mr0 asm("r10");
     register seL4_Word mr1 asm("r8");
     register seL4_Word mr2 asm("r9");
@@ -110,12 +128,18 @@ static inline void x64_sys_recv(seL4_Word sys, seL4_Word src, seL4_Word *out_bad
     *out_mr1 = mr1;
     *out_mr2 = mr2;
     *out_mr3 = mr3;
+#else
+    seL4emu_sys_recv(sys, src, out_badge, out_info,
+                          out_mr0, out_mr1, out_mr2, out_mr3,
+                          reply);
+#endif
 }
 
 static inline void x64_sys_send_recv(seL4_Word sys, seL4_Word dest, seL4_Word *out_dest, seL4_Word info,
                                      seL4_Word *out_info, seL4_Word *in_out_mr0, seL4_Word *in_out_mr1, seL4_Word *in_out_mr2, seL4_Word *in_out_mr3,
                                      LIBSEL4_UNUSED seL4_Word reply)
 {
+#ifndef CONFIG_SEL4_USE_EMULATION
     register seL4_Word mr0 asm("r10") = *in_out_mr0;
     register seL4_Word mr1 asm("r8") = *in_out_mr1;
     register seL4_Word mr2 asm("r9") = *in_out_mr2;
@@ -146,6 +170,11 @@ static inline void x64_sys_send_recv(seL4_Word sys, seL4_Word dest, seL4_Word *o
     *in_out_mr1 = mr1;
     *in_out_mr2 = mr2;
     *in_out_mr3 = mr3;
+#else
+    seL4emu_sys_send_recv(sys, dest, out_dest, info,
+                                     out_info, in_out_mr0, in_out_mr1, in_out_mr2, in_out_mr3,
+                                     reply);
+#endif
 }
 
 #ifdef CONFIG_KERNEL_MCS
@@ -153,6 +182,7 @@ static inline void x64_sys_nbsend_recv(seL4_Word sys, seL4_Word dest, seL4_Word 
                                        seL4_Word info, seL4_Word *out_info, seL4_Word *in_out_mr0, seL4_Word *in_out_mr1, seL4_Word *in_out_mr2,
                                        seL4_Word *in_out_mr3, seL4_Word reply)
 {
+#ifndef CONFIG_SEL4_USE_EMULATION
     register seL4_Word mr0 asm("r10") = *in_out_mr0;
     register seL4_Word mr1 asm("r8") = *in_out_mr1;
     register seL4_Word mr2 asm("r9") = *in_out_mr2;
@@ -185,11 +215,17 @@ static inline void x64_sys_nbsend_recv(seL4_Word sys, seL4_Word dest, seL4_Word 
     *in_out_mr1 = mr1;
     *in_out_mr2 = mr2;
     *in_out_mr3 = mr3;
+#else
+    seL4emu_sys_nbsend_recv(sys, dest, src, out_dest,
+                                 info, out_info, in_out_mr0, in_out_mr1, in_out_mr2, in_out_mr3, 
+                                 reply);
+#endif
 }
 #endif /* CONFIG_KERNEL_MCS */
 
 static inline void x64_sys_null(seL4_Word sys)
 {
+#ifndef CONFIG_SEL4_USE_EMULATION
     asm volatile(
         "movq   %%rsp, %%rbx    \n"
         "syscall                \n"
@@ -198,4 +234,7 @@ static inline void x64_sys_null(seL4_Word sys)
         : "d"(sys)
         : "%rbx", "%rcx", "%rsi", "%rdi", "%r11"
     );
+#else
+    seL4emu_sys_null(sys);
+#endif
 }

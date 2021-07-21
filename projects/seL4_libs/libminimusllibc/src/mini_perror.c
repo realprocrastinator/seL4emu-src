@@ -8,6 +8,8 @@
 
 #define BUFSIZE 1024
 
+extern int mini_errno;
+
 void mini_perror(const char *msg)
 {
 	char *errstr = mini_strerror(mini_errno);

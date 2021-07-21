@@ -21,6 +21,7 @@ all : build_dir ${BUILD_DIR}/build/libminimusllibc.a
 build_dir :
 		mkdir -p $(BUILD_DIR)/build
 		rm -rf $(BUILD_DIR)/build/*
+		rm -rf $(BUILD_DIR)/include/*
 		cp -r $(SOURCE_DIR)/include $(BUILD_DIR)/build/
 		cp -r $(SOURCE_DIR)/src $(BUILD_DIR)/build/
 		echo $(LIBOBJDIR)

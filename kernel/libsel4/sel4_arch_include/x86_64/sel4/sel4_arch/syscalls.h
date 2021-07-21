@@ -21,10 +21,6 @@
 #error Unknown method for kernel syscalls
 #endif
 
-// TODO: make `libsel4` and `libsel4emu` be linked interchangably by setting the configuration 
-#ifdef CONFIG_SEL4_USE_EMULATION
-#include <sel4emu.h>
-#endif
 
 LIBSEL4_INLINE_FUNC void seL4_Send(seL4_CPtr dest, seL4_MessageInfo_t msgInfo)
 {
@@ -590,12 +586,8 @@ LIBSEL4_INLINE_FUNC void seL4_DebugPutChar(char c)
     seL4_Word unused4 = 0;
     seL4_Word unused5 = 0;
 
-#ifdef CONFIG_SEL4_USE_EMULATION
-    seL4emu_DebugPutChar(c);
-#else
-    x64_sys_send_recv(seL4_SysDebugPutChar, c, &unused0, 0, &unused1, &unused2, &unused3, &unused4, &unused5, 0);
-#endif
 
+    x64_sys_send_recv(seL4_SysDebugPutChar, c, &unused0, 0, &unused1, &unused2, &unused3, &unused4, &unused5, 0);
 }
 
 LIBSEL4_INLINE_FUNC void seL4_DebugPutString(char *str)

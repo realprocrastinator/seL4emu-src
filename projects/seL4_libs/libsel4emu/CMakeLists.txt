@@ -13,12 +13,17 @@ get_property(compile_options DIRECTORY PROPERTY COMPILE_OPTIONS)
 message("Compile with options: ${compile_options}")
 add_compile_options(${compile_options})
 
-add_library(sel4emu STATIC src/sel4emu.c)
+add_library(sel4emu STATIC src/sel4emusyscalls.c src/sel4emufunctions.c)
 target_include_directories(
     sel4emu
     PUBLIC 
       include
 )
 
-add_dependencies(sel4emu muslc minimusllibc)
-target_link_libraries(sel4emu PUBLIC muslc minimusllibc)
+# Add the include directory of autoconf.h to the cflags for the bitfield generation
+include_directories("$<TARGET_PROPERTY:sel4_autoconf,INTERFACE_INCLUDE_DIRECTORIES>")
+
+# We need some header files from those libraries
+# TODO: find a neat way to only import header files from other libraries
+add_dependencies(sel4emu muslc minimusllibc sel4)
+target_link_libraries(sel4emu PUBLIC muslc minimusllibc sel4)

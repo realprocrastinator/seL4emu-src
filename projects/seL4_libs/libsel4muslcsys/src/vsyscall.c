@@ -324,7 +324,7 @@ static void NO_INLINE update_ipc_buffer(seL4_IPCBuffer *tmp)
 /* Initialise muslc environment */
 void CONSTRUCTOR(CONFIG_LIB_SEL4_MUSLC_SYS_CONSTRUCTOR_PRIORITY) muslcsys_init_muslc(void)
 {
-    // seL4_IPCBuffer *tmp = __sel4_ipc_buffer;
+    seL4_IPCBuffer *tmp = __sel4_ipc_buffer;
     __init_libc(sel4runtime_envp(), sel4runtime_argv()[0]);
-    // update_ipc_buffer(tmp);
+    update_ipc_buffer(tmp);
 }

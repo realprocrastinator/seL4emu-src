@@ -378,7 +378,7 @@ static inline exception_t Arch_setTLSRegister(word_t tls_base)
 #ifndef CONFIG_FSGSBASE_INST
     /*
      * The context is only updated from the register on a context switch
-     * if the FSGS instructions are enabled. When they aren't it msut be
+     * if the FSGS instructions are enabled. When they aren't it must be
      * manually stored here.
      */
     setRegister(NODE_STATE(ksCurThread), TLS_BASE, tls_base);
