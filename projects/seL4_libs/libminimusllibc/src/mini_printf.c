@@ -10,7 +10,7 @@
 #define MAX_INT_BUFF_SIZE  80
 
 /**
- * TODO: need to dispatch to different streams. eg. stdout, stderr...
+ * TODO(Jiawei): need to dispatch to different streams. eg. stdout, stderr...
  * 
  */
 static void write_char(void *nchars, int c) {

@@ -24,6 +24,6 @@ target_include_directories(
 include_directories("$<TARGET_PROPERTY:sel4_autoconf,INTERFACE_INCLUDE_DIRECTORIES>")
 
 # We need some header files from those libraries
-# TODO: find a neat way to only import header files from other libraries
+# TODO(Jiawei): find a neat way to only import header files from other libraries
 add_dependencies(sel4emu muslc minimusllibc sel4)
 target_link_libraries(sel4emu PUBLIC muslc minimusllibc sel4)

@@ -9,14 +9,14 @@
 #include <mini_assert.h>
 #include <sel4emusyscalls.h>
 
-// TODO: these macro only for debugging usage, should be moved to an appropriate place later.
+// TODO(Jiawei): these macro only for debugging usage, should be moved to an appropriate place later.
 #define SOCKET_NAME "/tmp/uds-test.socket"
 #define BUFFER_SIZE 2
 #define NOT_IMPLEMENTED (!"Not implemented yet")
 
 void seL4emu_sys_send(seL4_Word sys, seL4_Word dest, seL4_Word info, 
                       seL4_Word msg0, seL4_Word msg1, seL4_Word msg2, seL4_Word msg3) {
-  // TODO: seL4 send emulation
+  // TODO(Jiawei): seL4 send emulation
   mini_assert(NOT_IMPLEMENTED);
 }
 
@@ -32,11 +32,11 @@ void seL4emu_sys_send_null(seL4_Word sys, seL4_Word dest, seL4_Word info) {
     /**
      * We check if we can use the fsgsbase instruction faimily, if yes then we can setup the 
      * TLS in the user space, other wise ask host kernel to do it.
-     * TODO: As the kernel emulator are not fully functional, we do it ourselves, should
+     * TODO(Jiawei): As the kernel emulator are not fully functional, we do it ourselves, should
      * ask kernel emulator to do validation later!   
      */
     
-    /* TODO: query the CPUID to check if can use fabase instruction familly */
+    /* TODO(Jiawei): query the CPUID to check if can use fabase instruction familly */
     mini_printf("Got syscall seL4_SysSetTLSBase, setting up the TLS now.\n");
     unsigned long base = 0;
     asm volatile("rdfsbase %0":"=r"(base));
@@ -50,7 +50,7 @@ void seL4emu_sys_send_null(seL4_Word sys, seL4_Word dest, seL4_Word info) {
     break;
   }
   default:
-    /* TODO: Other syscalls requests we will just forward to the kernel emulator */
+    /* TODO(Jiawei): Other syscalls requests we will just forward to the kernel emulator */
     mini_printf("Got syscalls other then seL4_SysSetTLSBase, forwarding to the server now.\n");
     break;
   }
@@ -67,7 +67,7 @@ void seL4emu_sys_send_recv(seL4_Word sys, seL4_Word dest, seL4_Word *out_dest, s
                            seL4_Word *in_out_mr3, LIBSEL4_UNUSED seL4_Word reply) {
   
   if (sys == seL4_SysDebugPutChar) {
-    // TODO: Currently just print out whatevert the char is using local print functions instead of sending to the kernel emulator.
+    // TODO(Jiawei): Currently just print out whatevert the char is using local print functions instead of sending to the kernel emulator.
     mini_write(1, &dest, 1);
 
   } else {
