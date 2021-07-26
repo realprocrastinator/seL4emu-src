@@ -1,3 +1,18 @@
-hello*
+# tutorial auto generated configuration
+.tasks
+.tute_config
+
+# tutorial auto generated build files
 *build*
+*.obj
+
+# local debugging configuration
 **/.vscode
+
+# non relevent
+projects/camkes-vm-linux/
+
+# camkes auto gen files
+hello-dump*
+
+ipc/.allocator.obj

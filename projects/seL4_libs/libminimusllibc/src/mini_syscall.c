@@ -2,7 +2,8 @@
 #include "mini_internal_syscall.h"
 #include "../include/mini_stdarg.h"
 
-#undef syscall
+/* there was a macro defined in mini_internal_syscall for internal usage */
+#undef mini_syscall
 
 long mini_syscall(long n, ...)
 {

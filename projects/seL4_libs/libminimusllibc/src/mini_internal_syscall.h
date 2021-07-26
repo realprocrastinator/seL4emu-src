@@ -42,7 +42,7 @@ hidden long __mini_syscall_ret(unsigned long),
 #define __MINI_SYSCALL_DISP(b,...) __MINI_SYSCALL_CONCAT(b,__MINI_SYSCALL_NARGS(__VA_ARGS__))(__VA_ARGS__)
 
 #define __mini_syscall(...) __MINI_SYSCALL_DISP(__mini_syscall,__VA_ARGS__)
-#define syscall(...) __mini_syscall_ret(__mini_syscall(__VA_ARGS__))
+#define mini_syscall(...) __mini_syscall_ret(__mini_syscall(__VA_ARGS__))
 
 #define mini_socketcall(nm,a,b,c,d,e,f) __mini_syscall_ret(__mini_socketcall(nm,a,b,c,d,e,f))
 #define mini_socketcall_cp(nm,a,b,c,d,e,f) __mini_syscall_ret(__mini_socketcall_cp(nm,a,b,c,d,e,f))
