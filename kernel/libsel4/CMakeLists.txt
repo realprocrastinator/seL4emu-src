@@ -10,7 +10,7 @@ project(libsel4 C)
 
 set(configure_string "")
 
-# TODO: currently the emulation part is integrated in the libseL4 code for simplicity as we can directly use the build system without modifying lots of things. But in the future, we should make the `application` be linked with `libsel4emu` or `libsel4` interchangably to make configuration more felxible.
+# TODO(Jiawei): currently the emulation part is integrated in the libseL4 code for simplicity as we can directly use the build system without modifying lots of things. But in the future, we should make the `application` be linked with `libsel4emu` or `libsel4` interchangably to make configuration more felxible.
 config_option(
     seL4UseEmu SEL4_USE_EMULATION "Use the kernel emulation configuration."
     DEFAULT OFF

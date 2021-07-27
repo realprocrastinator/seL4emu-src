@@ -6,6 +6,11 @@
 *build*
 *.obj
 
+# tutorial desciption files
+dynamic-1/dynamic-1.md
+fault-handlers/fault-handlers.md
+mapping/mapping.md
+
 # local debugging configuration
 **/.vscode
 
@@ -15,4 +20,4 @@ projects/camkes-vm-linux/
 # camkes auto gen files
 hello-dump*
 
-ipc/.allocator.obj
+**/.allocator.obj
