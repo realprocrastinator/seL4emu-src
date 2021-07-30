@@ -1,13 +1,7 @@
+#pragma once
+
 #include <sel4/types.h>
-
-/**
- * This the message structure for emulating the seL4 IPC, the mesassage has several types, using tag 
- * to distinguish them, if the mesassage uses the seL4_sys_emu tag, then the content emulates the registers
- * when the real seL4 syscall call happen. The registers order follows the syscall calling convention and is
- * architectual dependent. Here we use the x86_64 calling convention.   
- */
-
-
+#include <sel4emuipc.h>
 
 void seL4emu_DebugPutChar(char c);
 

@@ -20,6 +20,12 @@
 #include "init.h"
 #include "util.h"
 
+#ifdef CONFIG_SEL4_USE_EMULATION
+// TODO(Jiawei): find a better way rather than hard coded here, better let server do this for us like the real seL4 system. But at moment this works. :)  
+static seL4_BootInfo emubootinfo;
+static char emuipcbuffer[4096];
+#endif
+
 // Minimum alignment across all platforms.
 #define MIN_ALIGN_BYTES 16
 #define MIN_ALIGNED __attribute__((aligned (MIN_ALIGN_BYTES)))
@@ -304,6 +310,17 @@ static void parse_auxv(auxv_t const auxv[])
         case AT_SEL4_BOOT_INFO: {
             seL4_BootInfo *bootinfo = auxv[i].a_un.a_ptr;
             if (bootinfo == SEL4RUNTIME_NULL) {
+#ifdef CONFIG_SEL4_USE_EMULATION
+                /* if we are using the emulation, and haven't found 
+                * a good way to let the server set up a frame of bootinfo and IPCbuffer for us, we just do ourselves. 
+                * */
+                env.bootinfo = &emubootinfo;
+                if (!emubootinfo.ipcBuffer) {
+                    emubootinfo.ipcBuffer = (seL4_IPCBuffer *) emuipcbuffer;
+                }
+                env.initial_thread_ipc_buffer = emubootinfo.ipcBuffer;
+                env.initial_thread_tcb = seL4_CapInitThreadTCB;    
+#endif          
                 break;
             }
             env.bootinfo = bootinfo;

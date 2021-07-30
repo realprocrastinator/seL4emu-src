@@ -51,11 +51,12 @@ if (NOT seL4UseEmu)
     foreach(file IN LISTS config_asm_sources)
         list(APPEND asm_sources "${CMAKE_CURRENT_SOURCE_DIR}/${file}")
     endforeach()
-    foreach(file IN LISTS config_bf_declarations)
-        list(APPEND bf_declarations "${CMAKE_CURRENT_SOURCE_DIR}/${file}")
-    endforeach()
-    set(KernelDTSList "${config_KernelDTSList}")
 endif()
+
+# This is needed for generating the header files from bit field
+foreach(file IN LISTS config_bf_declarations)
+    list(APPEND bf_declarations "${CMAKE_CURRENT_SOURCE_DIR}/${file}")
+endforeach()
 
 # Process the configuration scripts
 include(config.cmake)
@@ -231,7 +232,12 @@ if (seL4UseEmu)
     # the emulation source files instead.
     set(c_sources "")
     set(asm_sources "")
-    list(APPEND c_sources "${CMAKE_CURRENT_SOURCE_DIR}/src/emu/main.c")
+    
+    # we use the function add_sources to add source files into the global c_sources, otherwise, the compiler can't understand some of the auto generated header files.
+    add_sources(
+        CFILES
+            src/emu/main.c
+    )
 else()
     # Sort the C sources to ensure a stable layout of the final C file
     list(SORT c_sources)
@@ -470,9 +476,9 @@ endif()
 #
 
 # Need to generate a bunch of unique targets, we'll do this with piano numbers
-if (NOT seL4UseEmu)
-    set(bf_gen_target "kernel_bf_gen_target_1")
+set(bf_gen_target "kernel_bf_gen_target_1")
 
+if (NOT seL4UseEmu)
     foreach(bf_dec ${bf_declarations})
         string(
             REPLACE
@@ -560,6 +566,57 @@ if (NOT seL4UseEmu)
     # *must not* see this files and generate dependencies on them as this will result in nonsense.
     # As such we must manually add this as an include directory to future targets
     set(CPPExtraFlags "-I${CMAKE_CURRENT_BINARY_DIR}/generated")
+else()
+    foreach(bf_dec ${bf_declarations})
+        message("DEBUG: bf_declarations: ${bf_declarations}")
+        string(
+            REPLACE
+                ":"
+                ";"
+                bf_dec
+                ${bf_dec}
+        )
+        list(GET bf_dec 0 bf_file)
+        list(GET bf_dec 1 bf_gen_dir)
+        message("DEBUG: bf_file: ${bf_file}")
+        message("DEBUG: bf_gen_dir: ${bf_gen_dir}")
+        get_filename_component(bf_name "${bf_file}" NAME)
+        string(
+            REPLACE
+                ".bf"
+                "_gen.h"
+                bf_target
+                "${bf_name}"
+        )
+
+        set(pbf_name "generated/${bf_gen_dir}/${bf_name}.pbf")
+        set(pbf_target "${bf_gen_target}_pbf")
+
+        cppfile(
+            "${pbf_name}"
+            "${pbf_target}"
+            "${bf_file}"
+            EXTRA_FLAGS
+            -P
+            EXTRA_DEPS
+            kernel_config_headers
+            ${gen_files_list}
+        )
+
+        GenHBFTarget(
+            ""
+            ${bf_gen_target}
+            "generated/${bf_gen_dir}/${bf_target}"
+            "${pbf_name}"
+            "${pbf_target}"
+            ""
+            "${pbf_target}"
+        )
+
+        add_dependencies(kernel_headers "${bf_gen_target}")
+        list(APPEND gen_files_list "${CMAKE_CURRENT_BINARY_DIR}/generated/${bf_gen_dir}/${bf_target}")
+        set(bf_gen_target "${bf_gen_target}1")
+    endforeach()
 endif()
 
 #
@@ -574,6 +631,7 @@ if (seL4UseEmu)
     target_link_libraries(kernel_emulator PRIVATE kernel_Config kernel_autoconf)
     
     get_target_property(MAIN_CFLAGS kernel_emulator COMPILE_OPTIONS)
+    add_dependencies(kernel_emulator kernel_headers)
 else()
     cppfile(
         kernel_all.i

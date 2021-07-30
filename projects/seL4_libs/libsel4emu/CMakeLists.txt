@@ -13,7 +13,7 @@ get_property(compile_options DIRECTORY PROPERTY COMPILE_OPTIONS)
 message("Compile with options: ${compile_options}")
 add_compile_options(${compile_options})
 
-add_library(sel4emu STATIC src/sel4emusyscalls.c src/sel4emufunctions.c)
+add_library(sel4emu STATIC src/sel4emusyscalls.c src/sel4emufunctions.c src/sel4emuipc.c)
 target_include_directories(
     sel4emu
     PUBLIC 

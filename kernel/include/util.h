@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <autoconf.h>
+
 #define MASK(n) (BIT(n)-UL_CONST(1))
 #define IS_ALIGNED(n, b) (!((n) & MASK(b)))
 #define ROUND_DOWN(n, b) (((n) >> (b)) << (b))
@@ -90,11 +92,15 @@ void __builtin_unreachable(void);
     FNSPEC
         halt_spec: "\<Gamma> \<turnstile> {} Call halt_'proc {}"
 */
+/* Thos symbols conflicts when linking to std libc*/
+#ifndef CONFIG_SEL4_USE_EMULATION
 void halt(void) NORETURN;
 void memzero(void *s, unsigned long n);
 void *memset(void *s, unsigned long c, unsigned long n) VISIBLE;
 void *memcpy(void *ptr_dst, const void *ptr_src, unsigned long n) VISIBLE;
 int PURE strncmp(const char *s1, const char *s2, int n);
+#endif
+
 long CONST char_to_long(char c);
 long PURE str_to_long(const char *str);
 
