@@ -11,7 +11,13 @@ set(CMAKE_SYSTEM_NAME Generic)
 # obvious if someone accidentally uses it
 set(CMAKE_SYSTEM_PROCESSOR seL4CPU)
 
-set(CMAKE_SYSROOT "${CMAKE_BINARY_DIR}")
+# For the emulation to work, we will compile and link with gcc which requires
+# the host system root, so we don;t want to set the `sysroot` flag
+if (NOT seL4UseEmu)
+    set(CMAKE_SYSROOT "${CMAKE_BINARY_DIR}")
+else()
+    set(CMAKE_SYSROOT "")
+endif()
 set(CMAKE_STAGING_PREFIX "${CMAKE_BINARY_DIR}/staging")
 
 # When this file is passed to configure_file in cmake, these variables get set to
@@ -102,12 +108,21 @@ set(CMAKE_C_COMPILER ${CROSS_COMPILER_PREFIX}gcc)
 set(CMAKE_ASM_COMPILER ${CROSS_COMPILER_PREFIX}gcc)
 set(CMAKE_CXX_COMPILER ${CROSS_COMPILER_PREFIX}g++)
 
-set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
-set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
-set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
-set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
-
-set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+if (NOT seL4UseEmu)
+    # If we use the emulation configuration, we will need to search the host system
+    # root as well as the roots in `CMAKE_FIND_ROOT_PATH`
+    set(CMAKE_FIND_ROOT_PATH "${CMAKE_BINARY_DIR}" CACHE PATH "")
+    set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+    set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY BOTH)
+    set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE BOTH)
+    set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+else()
+    set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+    set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY BOTH)
+    set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE BOTH)
+    set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE BOTH)
+    set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+endif()
 
 mark_as_advanced(FORCE CMAKE_TOOLCHAIN_FILE)
 

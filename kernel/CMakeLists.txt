@@ -8,6 +8,10 @@ cmake_minimum_required(VERSION 3.8.2)
 include(CheckCCompilerFlag)
 project(seL4 C ASM)
 
+if (seL4UseEmu)
+    set(CMAKE_C_STANDARD 99)
+endif()
+
 # First find our helpers
 find_file(KERNEL_HELPERS_PATH helpers.cmake PATHS tools CMAKE_FIND_ROOT_PATH_BOTH)
 mark_as_advanced(FORCE KERNEL_HELPERS_PATH)
@@ -39,16 +43,19 @@ RequireTool(XMLLINT_PATH xmllint.sh)
 set(c_sources "")
 set(asm_sources "")
 set(bf_declarations "")
-foreach(file IN LISTS config_c_sources)
-    list(APPEND c_sources "${CMAKE_CURRENT_SOURCE_DIR}/${file}")
-endforeach()
-foreach(file IN LISTS config_asm_sources)
-    list(APPEND asm_sources "${CMAKE_CURRENT_SOURCE_DIR}/${file}")
-endforeach()
-foreach(file IN LISTS config_bf_declarations)
-    list(APPEND bf_declarations "${CMAKE_CURRENT_SOURCE_DIR}/${file}")
-endforeach()
-set(KernelDTSList "${config_KernelDTSList}")
+
+if (NOT seL4UseEmu)
+    foreach(file IN LISTS config_c_sources)
+        list(APPEND c_sources "${CMAKE_CURRENT_SOURCE_DIR}/${file}")
+    endforeach()
+    foreach(file IN LISTS config_asm_sources)
+        list(APPEND asm_sources "${CMAKE_CURRENT_SOURCE_DIR}/${file}")
+    endforeach()
+    foreach(file IN LISTS config_bf_declarations)
+        list(APPEND bf_declarations "${CMAKE_CURRENT_SOURCE_DIR}/${file}")
+    endforeach()
+    set(KernelDTSList "${config_KernelDTSList}")
+endif()
 
 # Process the configuration scripts
 include(config.cmake)
@@ -99,7 +106,9 @@ if(KernelArchRiscV)
         string(APPEND common_flags " -mabi=ilp32")
     endif()
 endif()
-string(APPEND common_flags " ${build_arch}")
+if (NOT seL4UseEmu)
+    string(APPEND common_flags " ${build_arch}")
+endif()
 if(Kernel64)
     string(APPEND common_flags " -D__KERNEL_64__")
 else()
@@ -141,11 +150,17 @@ macro(KernelCommonFlags)
         string(APPEND CMAKE_EXE_LINKER_FLAGS " ${common_flag} ")
     endforeach()
 endmacro(KernelCommonFlags)
-set(KernelOptimisation "-O0" CACHE STRING "" FORCE)
-KernelCommonFlags(-nostdinc -nostdlib ${KernelOptimisation} -DHAVE_AUTOCONF)
+
+if(seL4UseEmu)
+    KernelCommonFlags(-O0 -g2 -DHAVE_AUTOCONF)    
+else()
+    KernelCommonFlags(-nostdinc -nostdlib ${KernelOptimisation} -DHAVE_AUTOCONF)
+endif()
+
 if(KernelFWholeProgram)
     KernelCommonFlags(-fwhole-program)
 endif()
+
 if(KernelDebugBuild)
     KernelCommonFlags(-DDEBUG -g -ggdb)
     # Pretend to CMake that we're a release build with debug info. This is because
@@ -155,69 +170,105 @@ if(KernelDebugBuild)
 else()
     set(CMAKE_BUILD_TYPE "Release")
 endif()
-if(KernelArchX86 AND Kernel64)
-    KernelCommonFlags(-mcmodel=kernel)
-endif()
-if(KernelArchARM)
-    if(KernelSel4ArchAarch64)
-        KernelCommonFlags(-mgeneral-regs-only)
-    else()
-        KernelCommonFlags(-mfloat-abi=soft)
+
+if(seL4UseEmu)
+    add_compile_options(
+        -std=c99
+        -Wall
+        -Werror
+        -Wmissing-prototypes
+        -Wnested-externs
+        -Wmissing-declarations
+        -Wundef
+        -Wpointer-arith
+        -Wno-nonnull
+    )
+else()
+    if(KernelArchX86 AND Kernel64)
+        KernelCommonFlags(-mcmodel=kernel)
+    endif()
+
+    if(KernelArchARM)
+        if(KernelSel4ArchAarch64)
+            KernelCommonFlags(-mgeneral-regs-only)
+        else()
+            KernelCommonFlags(-mfloat-abi=soft)
+        endif()
+    endif()
+
+    if(KernelArchRiscV)
+        KernelCommonFlags(-mcmodel=medany)
+    endif()
+
+    KernelCommonFlags(-fno-pic -fno-pie)
+
+    add_compile_options(
+        -fno-stack-protector
+        -fno-asynchronous-unwind-tables
+        -std=c99
+        -Wall
+        -Werror
+        -Wstrict-prototypes
+        -Wmissing-prototypes
+        -Wnested-externs
+        -Wmissing-declarations
+        -Wundef
+        -Wpointer-arith
+        -Wno-nonnull
+        -ffreestanding
+    )
+
+    # Add all the common flags to the linker args
+string(APPEND CMAKE_EXE_LINKER_FLAGS " -ffreestanding -Wl,--build-id=none -static -Wl,-n ")
+    if(KernelArchX86)
+        add_compile_options(-mno-mmx -mno-sse -mno-sse2 -mno-3dnow)  
     endif()
 endif()
-if(KernelArchRiscV)
-    KernelCommonFlags(-mcmodel=medany)
+
+if (seL4UseEmu)
+    # at this stage, since the CMAKE already collected all the source files to build the 
+    # original kernel, we need to clean up the those files and use
+    # the emulation source files instead.
+    set(c_sources "")
+    set(asm_sources "")
+    list(APPEND c_sources "${CMAKE_CURRENT_SOURCE_DIR}/src/emu/main.c")
+else()
+    # Sort the C sources to ensure a stable layout of the final C file
+    list(SORT c_sources)
+    # Add the domain schedule now that its sorted
+    list(APPEND c_sources "${KernelDomainSchedule}")
 endif()
-KernelCommonFlags(-fno-pic -fno-pie )
-add_compile_options(
-    -fno-stack-protector
-    -fno-asynchronous-unwind-tables
-    -std=c99
-    -Wall
-    -Werror
-    -Wstrict-prototypes
-    -Wmissing-prototypes
-    -Wnested-externs
-    -Wmissing-declarations
-    -Wundef
-    -Wpointer-arith
-    -Wno-nonnull
-    -ffreestanding
-)
-
-# Add all the common flags to the linker args
-string(APPEND CMAKE_EXE_LINKER_FLAGS " -ffreestanding -Wl,--build-id=none -static -Wl,-n ")
-
-if(KernelArchX86)
-    add_compile_options(-mno-mmx -mno-sse -mno-sse2 -mno-3dnow)
-endif()
-
-# Sort the C sources to ensure a stable layout of the final C file
-list(SORT c_sources)
-# Add the domain schedule now that its sorted
-list(APPEND c_sources "${KernelDomainSchedule}")
 
 # Add static header includes
-include_directories("include")
-include_directories("include/${KernelWordSize}")
-include_directories("include/arch/${KernelArch}")
-include_directories("include/arch/${KernelArch}/arch/${KernelWordSize}/")
-include_directories("include/plat/${KernelPlatform}/")
-include_directories("include/plat/${KernelPlatform}/plat/${KernelWordSize}/")
-if(KernelArchARM)
-    include_directories("include/arch/arm/armv/${KernelArmArmV}/")
-    include_directories("include/arch/arm/armv/${KernelArmArmV}/${KernelWordSize}")
+include_directories(
+    "include"
+    "include/${KernelWordSize}"
+    "include/arch/${KernelArch}"
+    "include/arch/${KernelArch}/arch/${KernelWordSize}"
+    "include/plat/${KernelPlatform}"
+    "include/plat/${KernelPlatform}/plat/${KernelWordSize}"
+)
+
+# There are some header files' names same as the stdlibc,
+# we tell the compiler to only use those header files when
+# building the real kernel 
+if (NOT seL4UseEmu)
+    include_directories("include/std")
 endif()
+
+if(KernelArchARM)
+    include_directories(
+        "include/arch/arm/armv/${KernelArmArmV}"
+        "include/arch/arm/armv/${KernelArmArmV}/${KernelWordSize}"
+    )
+endif()
+
 if(KernelArmMach STREQUAL "exynos")
     include_directories("include/plat/exynos_common/")
 endif()
-if(KernelArchRiscV)
-    include_directories("include/arch/${KernelArch}/arch/${KernelWordSize}")
-    include_directories("include/plat/${KernelPlatform}/plat/${KernelWordSize}")
-endif()
 
-# Add libsel4 include directories.
-# These are explicitly added instead of calling target_link_libraries(${target} sel4)
+# Add libsel4 include directories. 
+# These are explicitly added instead of calling target_link_libraries(${target} sel4) 
 # because we don't want to inherit any other build options from libsel4.
 include_directories(
     "libsel4/include"
@@ -232,7 +283,7 @@ include_directories(
 #
 
 include_directories($<TARGET_PROPERTY:kernel_Config,INTERFACE_INCLUDE_DIRECTORIES>)
-# The kernel expects to be able to include an 'autoconf.h' file at the moment. So lets
+# The kernel expects to be able to include an 'autoconf.h' file at the moment. So lets 
 # generate one for it to use
 # TODO: use the kernel_Config directly
 generate_autoconf(kernel_autoconf "kernel")
@@ -264,16 +315,18 @@ list(APPEND gen_files_list "${gen_files2}")
 # Kernel compiles all C sources as a single C file, this provides
 # rules for doing the concatenation
 
-add_custom_command(
-    OUTPUT kernel_all.c
-    COMMAND
-        "${CPP_GEN_PATH}" ${c_sources} > kernel_all.c
-    DEPENDS "${CPP_GEN_PATH}" ${c_sources}
-    COMMENT "Concatenating C files"
-    VERBATIM
-)
+if (NOT seL4UseEmu)
+    add_custom_command(
+        OUTPUT kernel_all.c
+        COMMAND
+            "${CPP_GEN_PATH}" ${c_sources} > kernel_all.c
+        DEPENDS "${CPP_GEN_PATH}" ${c_sources}
+        COMMENT "Concatenating C files"
+        VERBATIM
+    )
 
-add_custom_target(kernel_all_c_wrapper DEPENDS kernel_all.c)
+    add_custom_target(kernel_all_c_wrapper DEPENDS kernel_all.c)
+endif()
 
 #
 # Header Generation
@@ -361,221 +414,235 @@ include_directories("${CMAKE_CURRENT_BINARY_DIR}/gen_headers")
 # If we allowed the bitfield headers to be included then we would have a circular
 # dependency. As a result this rule comes *before* the Bitfield header generation section
 
-set(dummy_headers "")
-foreach(bf_dec ${bf_declarations})
-    string(
-        REPLACE
-            ":"
-            ";"
-            bf_dec
-            ${bf_dec}
-    )
-    list(GET bf_dec 0 bf_file)
-    list(GET bf_dec 1 bf_gen_dir)
-    get_filename_component(bf_name "${bf_file}" NAME)
-    string(
-        REPLACE
-            ".bf"
-            "_gen.h"
-            bf_target
-            "${bf_name}"
-    )
-    list(
-        APPEND
-            dummy_headers "${CMAKE_CURRENT_BINARY_DIR}/generated_prune/${bf_gen_dir}/${bf_target}"
-    )
-endforeach()
+if (NOT seL4UseEmu)
+    set(dummy_headers "")
+    foreach(bf_dec ${bf_declarations})
+        string(
+            REPLACE
+                ":"
+                ";"
+                bf_dec
+                ${bf_dec}
+        )
+        list(GET bf_dec 0 bf_file)
+        list(GET bf_dec 1 bf_gen_dir)
+        get_filename_component(bf_name "${bf_file}" NAME)
+        string(
+            REPLACE
+                ".bf"
+                "_gen.h"
+                bf_target
+                "${bf_name}"
+        )
+        list(
+            APPEND
+                dummy_headers "${CMAKE_CURRENT_BINARY_DIR}/generated_prune/${bf_gen_dir}/${bf_target}"
+        )
+    endforeach()
 
-add_custom_command(
-    OUTPUT ${dummy_headers}
-    COMMAND
-        ${CMAKE_COMMAND} -E touch ${dummy_headers}
-    COMMENT "Generate dummy headers for prune compilation"
-)
+    add_custom_command(
+        OUTPUT ${dummy_headers}
+        COMMAND
+            ${CMAKE_COMMAND} -E touch ${dummy_headers}
+        COMMENT "Generate dummy headers for prune compilation"
+    )
 
-add_custom_target(dummy_header_wrapper DEPENDS ${dummy_headers})
+    add_custom_target(dummy_header_wrapper DEPENDS ${dummy_headers})
 
-cppfile(
-    kernel_all_pp_prune.c
-    kernel_all_pp_prune_wrapper
-    kernel_all.c
-    EXTRA_FLAGS
-    -CC
-    "-I${CMAKE_CURRENT_BINARY_DIR}/generated_prune"
-    EXTRA_DEPS
-    kernel_all_c_wrapper
-    dummy_header_wrapper
-    xml_headers_target
-    kernel_config_headers
-    ${gen_files_list}
-)
+    cppfile(
+        kernel_all_pp_prune.c
+        kernel_all_pp_prune_wrapper
+        kernel_all.c
+        EXTRA_FLAGS
+        -CC
+        "-I${CMAKE_CURRENT_BINARY_DIR}/generated_prune"
+        EXTRA_DEPS
+        kernel_all_c_wrapper
+        dummy_header_wrapper
+        xml_headers_target
+        kernel_config_headers
+        ${gen_files_list}
+    )
+endif()
 
 #
 # Bitfield header generation
 #
 
 # Need to generate a bunch of unique targets, we'll do this with piano numbers
-set(bf_gen_target "kernel_bf_gen_target_1")
+if (NOT seL4UseEmu)
+    set(bf_gen_target "kernel_bf_gen_target_1")
 
-foreach(bf_dec ${bf_declarations})
-    string(
-        REPLACE
-            ":"
-            ";"
-            bf_dec
-            ${bf_dec}
-    )
-    list(GET bf_dec 0 bf_file)
-    list(GET bf_dec 1 bf_gen_dir)
-    get_filename_component(bf_name "${bf_file}" NAME)
-    string(
-        REPLACE
-            ".bf"
-            "_gen.h"
-            bf_target
-            "${bf_name}"
-    )
-    string(
-        REPLACE
-            ".bf"
-            "_defs.thy"
-            defs_target
-            "${bf_name}"
-    )
-    string(
-        REPLACE
-            ".bf"
-            "_proofs.thy"
-            proofs_target
-            "${bf_name}"
-    )
-    set(pbf_name "generated/${bf_gen_dir}/${bf_name}.pbf")
-    set(pbf_target "${bf_gen_target}_pbf")
-    cppfile(
-        "${pbf_name}"
-        "${pbf_target}"
-        "${bf_file}"
-        EXTRA_FLAGS
-        -P
-        EXTRA_DEPS
-        kernel_config_headers
-        ${gen_files_list}
-    )
-    GenHBFTarget(
-        ""
-        ${bf_gen_target}
-        "generated/${bf_gen_dir}/${bf_target}"
-        "${pbf_name}"
-        "${pbf_target}"
-        "kernel_all_pp_prune.c"
-        "kernel_all_pp_prune_wrapper"
-    )
-    GenDefsBFTarget(
-        "${bf_gen_target}_def"
-        "generated/${bf_gen_dir}/${defs_target}"
-        "${pbf_name}"
-        "${pbf_target}"
-        "kernel_all_pp_prune.c"
-        "kernel_all_pp_prune_wrapper"
-    )
-    GenProofsBFTarget(
-        "${bf_gen_target}_proof"
-        "generated/${bf_gen_dir}/${proofs_target}"
-        "${pbf_name}"
-        "${pbf_target}"
-        "kernel_all_pp_prune.c"
-        "kernel_all_pp_prune_wrapper"
-    )
-    list(
-        APPEND
-            theories_deps
+    foreach(bf_dec ${bf_declarations})
+        string(
+            REPLACE
+                ":"
+                ";"
+                bf_dec
+                ${bf_dec}
+        )
+        list(GET bf_dec 0 bf_file)
+        list(GET bf_dec 1 bf_gen_dir)
+        get_filename_component(bf_name "${bf_file}" NAME)
+        string(
+            REPLACE
+                ".bf"
+                "_gen.h"
+                bf_target
+                "${bf_name}"
+        )
+        string(
+            REPLACE
+                ".bf"
+                "_defs.thy"
+                defs_target
+                "${bf_name}"
+        )
+        string(
+            REPLACE
+                ".bf"
+                "_proofs.thy"
+                proofs_target
+                "${bf_name}"
+        )
+        set(pbf_name "generated/${bf_gen_dir}/${bf_name}.pbf")
+        set(pbf_target "${bf_gen_target}_pbf")
+        cppfile(
+            "${pbf_name}"
+            "${pbf_target}"
+            "${bf_file}"
+            EXTRA_FLAGS
+            -P
+            EXTRA_DEPS
+            kernel_config_headers
+            ${gen_files_list}
+        )
+        GenHBFTarget(
+            ""
+            ${bf_gen_target}
+            "generated/${bf_gen_dir}/${bf_target}"
+            "${pbf_name}"
+            "${pbf_target}"
+            "kernel_all_pp_prune.c"
+            "kernel_all_pp_prune_wrapper"
+        )
+        GenDefsBFTarget(
             "${bf_gen_target}_def"
-            "${CMAKE_CURRENT_BINARY_DIR}/generated/${bf_gen_dir}/${defs_target}"
+            "generated/${bf_gen_dir}/${defs_target}"
+            "${pbf_name}"
+            "${pbf_target}"
+            "kernel_all_pp_prune.c"
+            "kernel_all_pp_prune_wrapper"
+        )
+        GenProofsBFTarget(
             "${bf_gen_target}_proof"
-            "${CMAKE_CURRENT_BINARY_DIR}/generated/${bf_gen_dir}/${proofs_target}"
-    )
-    add_dependencies(kernel_headers "${bf_gen_target}")
-    list(APPEND gen_files_list "${CMAKE_CURRENT_BINARY_DIR}/generated/${bf_gen_dir}/${bf_target}")
-    set(bf_gen_target "${bf_gen_target}1")
-endforeach()
-# At this point we have generated a bunch of headers into ${CMAKE_CURRENT_BINARY_DIR}/generated
-# but we do not pass this to include_directories, as that will cause it to be an include directory
-# for *all* targets in this file (including ones we defined earlier) and the prune generation
-# *must not* see this files and generate dependencies on them as this will result in nonsense.
-# As such we must manually add this as an include directory to future targets
-set(CPPExtraFlags "-I${CMAKE_CURRENT_BINARY_DIR}/generated")
+            "generated/${bf_gen_dir}/${proofs_target}"
+            "${pbf_name}"
+            "${pbf_target}"
+            "kernel_all_pp_prune.c"
+            "kernel_all_pp_prune_wrapper"
+        )
+        list(
+            APPEND
+                theories_deps
+                "${bf_gen_target}_def"
+                "${CMAKE_CURRENT_BINARY_DIR}/generated/${bf_gen_dir}/${defs_target}"
+                "${bf_gen_target}_proof"
+                "${CMAKE_CURRENT_BINARY_DIR}/generated/${bf_gen_dir}/${proofs_target}"
+        )
+        add_dependencies(kernel_headers "${bf_gen_target}")
+        list(APPEND gen_files_list "${CMAKE_CURRENT_BINARY_DIR}/generated/${bf_gen_dir}/${bf_target}")
+        set(bf_gen_target "${bf_gen_target}1")
+    endforeach()
+    # At this point we have generated a bunch of headers into ${CMAKE_CURRENT_BINARY_DIR}/generated
+    # but we do not pass this to include_directories, as that will cause it to be an include directory
+    # for *all* targets in this file (including ones we defined earlier) and the prune generation
+    # *must not* see this files and generate dependencies on them as this will result in nonsense.
+    # As such we must manually add this as an include directory to future targets
+    set(CPPExtraFlags "-I${CMAKE_CURRENT_BINARY_DIR}/generated")
+endif()
 
 #
 # Kernel compilation
 #
 
-cppfile(
-    kernel_all.i
-    kernel_i_wrapper
-    kernel_all.c
-    EXTRA_DEPS
-    kernel_all_c_wrapper
-    kernel_headers
-    ${gen_files_list}
-    EXTRA_FLAGS
-    -CC
-    "${CPPExtraFlags}"
-    # The circular_includes script relies upon parsing out exactly 'kernel_all_copy.c' as
-    # a special case so we must ask cppfile to use this input name
-    EXACT_NAME kernel_all_copy.c
-)
-
-# Explain to cmake that our object file is actually a C input file
-set_property(SOURCE kernel_all.i PROPERTY LANGUAGE C)
-
-if(KernelArchARM)
-    set(linker_source "src/arch/arm/common_arm.lds")
-elseif(KernelArchRiscV)
-    set(linker_source "src/arch/riscv/common_riscv.lds")
+if (seL4UseEmu)
+    add_executable(kernel_emulator ${asm_sources} ${c_sources})
+    target_include_directories(kernel_emulator PRIVATE ${config_dir})
+    target_include_directories(kernel_emulator PRIVATE include)
+    target_include_directories(kernel_emulator PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
+    target_link_libraries(kernel_emulator PRIVATE kernel_Config kernel_autoconf)
+    
+    get_target_property(MAIN_CFLAGS kernel_emulator COMPILE_OPTIONS)
 else()
-    set(linker_source "src/plat/${KernelPlatform}/linker.lds")
+    cppfile(
+        kernel_all.i
+        kernel_i_wrapper
+        kernel_all.c
+        EXTRA_DEPS
+        kernel_all_c_wrapper
+        kernel_headers
+        ${gen_files_list}
+        EXTRA_FLAGS
+        -CC
+        "${CPPExtraFlags}"
+        # The circular_includes script relies upon parsing out exactly 'kernel_all_copy.c' as
+        # a special case so we must ask cppfile to use this input name
+        EXACT_NAME kernel_all_copy.c
+    )
+
+    # Explain to cmake that our object file is actually a C input file
+    set_property(SOURCE kernel_all.i PROPERTY LANGUAGE C)
+
+    if(KernelArchARM)
+        set(linker_source "src/arch/arm/common_arm.lds")
+    elseif(KernelArchRiscV)
+        set(linker_source "src/arch/riscv/common_riscv.lds")
+    else()
+        set(linker_source "src/plat/${KernelPlatform}/linker.lds")
+    endif()
+    set(linker_lds_path "${CMAKE_CURRENT_BINARY_DIR}/linker.lds_pp")
+
+    # Preprocess the linker script
+    cppfile(
+        "${linker_lds_path}"
+        linker_ld_wrapper
+        "${linker_source}"
+        EXTRA_DEPS
+        kernel_headers
+        ${gen_files_list}
+        EXTRA_FLAGS
+        -CC
+        -P
+        "${CPPExtraFlags}"
+    )
+
+    add_custom_command(
+        OUTPUT circular_includes_valid
+        COMMAND ${CIRCULAR_INCLUDES} --ignore kernel_all_copy.c < kernel_all.i
+        COMMAND touch circular_includes_valid
+        DEPENDS kernel_i_wrapper kernel_all.i
+    )
+
+    add_custom_target(circular_includes DEPENDS circular_includes_valid)
+
+    add_custom_command(
+        OUTPUT kernel_all_pp.c
+        COMMAND
+            ${CMAKE_COMMAND} -E copy kernel_all.i kernel_all_pp.c
+        DEPENDS kernel_i_wrapper kernel_all.i
+    )
+    add_custom_target(kernel_all_pp_wrapper DEPENDS kernel_all_pp.c)
+
+    add_custom_target(kernel_theories DEPENDS ${theories_deps})
+
+    # Declare final kernel output
+    add_executable(kernel.elf EXCLUDE_FROM_ALL ${asm_sources} kernel_all.c)
+    target_include_directories(kernel.elf PRIVATE ${config_dir})
+    target_include_directories(kernel.elf PRIVATE include)
+    target_include_directories(kernel.elf PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
+    target_link_libraries(kernel.elf PRIVATE kernel_Config kernel_autoconf)
+    set_property(TARGET kernel.elf APPEND_STRING PROPERTY LINK_FLAGS " -Wl,-T ${linker_lds_path} ")
+    set_target_properties(kernel.elf PROPERTIES LINK_DEPENDS "${linker_lds_path}")
+    add_dependencies(kernel.elf circular_includes)
 endif()
-set(linker_lds_path "${CMAKE_CURRENT_BINARY_DIR}/linker.lds_pp")
-
-# Preprocess the linker script
-cppfile(
-    "${linker_lds_path}"
-    linker_ld_wrapper
-    "${linker_source}"
-    EXTRA_DEPS
-    kernel_headers
-    ${gen_files_list}
-    EXTRA_FLAGS
-    -CC
-    -P
-    "${CPPExtraFlags}"
-)
-
-add_custom_command(
-    OUTPUT circular_includes_valid
-    COMMAND ${CIRCULAR_INCLUDES} --ignore kernel_all_copy.c < kernel_all.i
-    COMMAND touch circular_includes_valid
-    DEPENDS kernel_i_wrapper kernel_all.i
-)
-
-add_custom_target(circular_includes DEPENDS circular_includes_valid)
-
-add_custom_command(
-    OUTPUT kernel_all_pp.c
-    COMMAND
-        ${CMAKE_COMMAND} -E copy kernel_all.i kernel_all_pp.c
-    DEPENDS kernel_i_wrapper kernel_all.i
-)
-add_custom_target(kernel_all_pp_wrapper DEPENDS kernel_all_pp.c)
-
-add_custom_target(kernel_theories DEPENDS ${theories_deps})
-
-# Declare final kernel output
-add_executable(kernel.elf EXCLUDE_FROM_ALL ${asm_sources} kernel_all.c)
-target_include_directories(kernel.elf PRIVATE ${config_dir})
-target_include_directories(kernel.elf PRIVATE include)
-target_include_directories(kernel.elf PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
-target_link_libraries(kernel.elf PRIVATE kernel_Config kernel_autoconf)
-set_property(TARGET kernel.elf APPEND_STRING PROPERTY LINK_FLAGS " -Wl,-T ${linker_lds_path} ")
-set_target_properties(kernel.elf PROPERTIES LINK_DEPENDS "${linker_lds_path}")
-add_dependencies(kernel.elf circular_includes)

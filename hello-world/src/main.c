@@ -1,7 +1,9 @@
-#define _GNU_SOURCE
 #include <autoconf.h>
 #include <stdio.h>
 #include <unistd.h>
+
+#ifdef CONFIG_SEL4_USE_EMULATION
+#define _GNU_SOURCE
 #include <mini_signal.h>
 
 static void sigsegvhdlr(int sig, siginfo_t* info, void* ctx) {
@@ -9,12 +11,19 @@ static void sigsegvhdlr(int sig, siginfo_t* info, void* ctx) {
     _exit(0); // halt in a infinite loop
 }
 
-int main(int argc, char *argv[]) {
-    
+static void install_sigsegv_handler() {
     struct sigaction sa = {0};
     sa.sa_flags = SA_SIGINFO;
     sa.sa_sigaction = sigsegvhdlr;
     mini_sigaction(SIGSEGV, &sa, NULL);
+}
+#endif
+
+int main(int argc, char *argv[]) {
+
+#if CONFIG_SEL4_USE_EMULATION
+    install_sigsegv_handler();
+#endif
 
     printf("Hello, World!\n");
 

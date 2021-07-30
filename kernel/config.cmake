@@ -13,6 +13,12 @@ config_option(
     DEFAULT OFF
 )
 
+# TODO(Jiawei): currently the emulation part is integrated in the libseL4 code for simplicity as we can directly use the build system without modifying lots of things. But in the future, we should make the `application` be linked with `libsel4emu` or `libsel4` interchangably to make configuration more felxible.
+config_option(
+    seL4UseEmu SEL4_USE_EMULATION "Use the kernel emulation configuration."
+    DEFAULT Off
+)
+
 # Error for unsupported MCS platforms
 if(KernelIsMCS AND (NOT KernelPlatformSupportsMCS))
     message(

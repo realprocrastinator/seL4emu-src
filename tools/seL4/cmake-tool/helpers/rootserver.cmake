@@ -45,24 +45,47 @@ function(DeclareRootserver rootservername)
         PROPERTY LINK_FLAGS " -Wl,-T ${TLS_ROOTSERVER} "
     )
     if("${KernelArch}" STREQUAL "x86")
-        set(
-            IMAGE_NAME
-            "${CMAKE_BINARY_DIR}/images/${rootservername}-image-${KernelSel4Arch}-${KernelPlatform}"
-        )
-        set(
-            KERNEL_IMAGE_NAME
-            "${CMAKE_BINARY_DIR}/images/kernel-${KernelSel4Arch}-${KernelPlatform}"
-        )
+        if (NOT seL4UseEmu)
+            set(
+                IMAGE_NAME
+                "${CMAKE_BINARY_DIR}/images/${rootservername}-image-${KernelSel4Arch}-${KernelPlatform}"
+            )
+            set(
+                KERNEL_IMAGE_NAME
+                "${CMAKE_BINARY_DIR}/images/kernel-${KernelSel4Arch}-${KernelPlatform}"
+            )
+        else()
+            set(
+                IMAGE_NAME
+                "${CMAKE_BINARY_DIR}/emu-images/${rootservername}-image-${KernelSel4Arch}-${KernelPlatform}-emu"
+            )
+            set(
+                KERNEL_IMAGE_NAME
+                "${CMAKE_BINARY_DIR}/emu-images/kernel-${KernelSel4Arch}-${KernelPlatform}-emu"
+            )
+        endif()
         # Declare targets for building the final kernel image
         if(Kernel64)
-            add_custom_command(
-                OUTPUT "${KERNEL_IMAGE_NAME}"
-                COMMAND
-                    ${CMAKE_OBJCOPY} -O elf32-i386 $<TARGET_FILE:kernel.elf> "${KERNEL_IMAGE_NAME}"
-                VERBATIM
-                DEPENDS kernel.elf
-                COMMENT "objcopy kernel into bootable elf"
-            )
+            if (NOT seL4UseEmu)
+                add_custom_command(
+                    OUTPUT "${KERNEL_IMAGE_NAME}"
+                    COMMAND
+                        ${CMAKE_OBJCOPY} -O elf32-i386 $<TARGET_FILE:kernel.elf> "${KERNEL_IMAGE_NAME}"
+                    VERBATIM
+                    DEPENDS kernel.elf
+                    COMMENT "objcopy kernel into bootable elf"
+                )
+            else()
+                # TODO(Jiawei): add prefix to the IMAGENAME indicating that this is the emulator build 
+                add_custom_command(
+                    OUTPUT "${KERNEL_IMAGE_NAME}"
+                    COMMAND
+                        ${CMAKE_OBJCOPY} $<TARGET_FILE:kernel_emulator> "${KERNEL_IMAGE_NAME}"
+                    VERBATIM
+                    DEPENDS kernel_emulator
+                    COMMENT "objcopy kernel into bootable elf"
+                )
+            endif()
         else()
             add_custom_command(
                 OUTPUT "${KERNEL_IMAGE_NAME}"
@@ -76,15 +99,29 @@ function(DeclareRootserver rootservername)
             COMMAND cp $<TARGET_FILE:${rootservername}> "${IMAGE_NAME}"
             DEPENDS ${rootservername}
         )
-        add_custom_target(
-            rootserver_image ALL
-            DEPENDS
-                "${IMAGE_NAME}"
-                "${KERNEL_IMAGE_NAME}"
-                kernel.elf
-                $<TARGET_FILE:${rootservername}>
-                ${rootservername}
-        )
+
+        if (NOT seL4UseEmu)
+            add_custom_target(
+                rootserver_image ALL
+                DEPENDS
+                    "${IMAGE_NAME}"
+                    "${KERNEL_IMAGE_NAME}"
+                    kernel.elf
+                    $<TARGET_FILE:${rootservername}>
+                    ${rootservername}
+            )
+        else()
+            add_custom_target(
+                rootserver_image ALL
+                DEPENDS
+                    "${IMAGE_NAME}"
+                    "${KERNEL_IMAGE_NAME}"
+                    kernel_emulator
+                    $<TARGET_FILE:${rootservername}>
+                    ${rootservername}
+            )
+        endif()
+
     elseif(KernelArchARM OR KernelArchRiscV)
         set(
             IMAGE_NAME
