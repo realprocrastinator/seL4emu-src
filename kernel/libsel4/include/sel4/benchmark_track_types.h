@@ -12,6 +12,11 @@
 #include <autoconf.h>
 #endif
 
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <arch/types.h>
+#include <sel4/macros.h> // for SEL4_PACKED 
+#endif
+
 #if (defined CONFIG_BENCHMARK_TRACK_KERNEL_ENTRIES || defined CONFIG_DEBUG_BUILD)
 
 /* the following code can be used at any point in the kernel

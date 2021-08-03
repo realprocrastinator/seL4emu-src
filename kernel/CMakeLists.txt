@@ -236,7 +236,32 @@ if (seL4UseEmu)
     # we use the function add_sources to add source files into the global c_sources, otherwise, the compiler can't understand some of the auto generated header files.
     add_sources(
         CFILES
-            src/emu/main.c
+            # emulation internal implementations
+            src/emu/internal/main.c
+            src/emu/internal/emu_syscalls.c
+            src/emu/internal/emu_ipcmsg.c
+            src/emu/internal/emu_globalstate.c
+            # kernel src
+            src/emu/api/syscalls.c
+            src/emu/assert.c
+            src/emu/util.c
+            src/emu/inline.c
+            src/emu/model/statedata.c
+            src/emu/arch/${KernelArch}/c_traps.c
+            src/emu/arch/${KernelArch}/idle.c
+            # src/emu/arch/${KernelArch}/${KernelWordSize}/c_traps.c
+            src/emu/arch/${KernelArch}/model/statedata.c
+            src/emu/arch/${KernelArch}/${KernelWordSize}/machine/registerset.c
+            src/emu/arch/${KernelArch}/${KernelWordSize}/machine/hardware.c
+            # kernel functionalities
+            src/emu/kernel/cspace.c
+            src/emu/kernel/faulthandler.c
+            src/emu/kernel/thread.c
+            src/emu/arch/${KernelArch}/${KernelWordSize}/kernel/vspace.c
+            src/emu/arch/${KernelArch}/${KernelWordSize}/kernel/thread.c
+            # kernel objects 
+            src/emu/object/tcb.c
+            
     )
 else()
     # Sort the C sources to ensure a stable layout of the final C file
@@ -260,6 +285,9 @@ include_directories(
 # building the real kernel 
 if (NOT seL4UseEmu)
     include_directories("include/std")
+else()
+    # emulation specific headers
+    include_directories("include/emu/arch/${KernelArch}/${KernelWordSize}")
 endif()
 
 if(KernelArchARM)
@@ -624,6 +652,8 @@ endif()
 #
 
 if (seL4UseEmu)
+    message("DEBUG: c_sources: ${c_sources}")
+
     add_executable(kernel_emulator ${asm_sources} ${c_sources})
     target_include_directories(kernel_emulator PRIVATE ${config_dir})
     target_include_directories(kernel_emulator PRIVATE include)

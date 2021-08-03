@@ -7,7 +7,11 @@
 #pragma once
 
 #include <config.h>
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <emu/emu_types.h>
+#else
 #include <types.h>
+#endif
 #include <util.h>
 #include <object/structures.h>
 #include <arch/types.h>
@@ -18,7 +22,6 @@
 #include <plat/machine.h>
 
 #include <mode/model/statedata.h>
-
 
 #define TSS_IO_MAP_SIZE (65536 / 8 / sizeof(word_t) + 1)
 

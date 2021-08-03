@@ -7,15 +7,12 @@ cmake_minimum_required(VERSION 3.7.2)
 
 project(libminimusllibc C)
 
-message("")
-message("CMake says Hello from libminimusllibc lib!")
-message("")
+message("DEBUG: CMake says Hello from libminimusllibc lib!")
 
 # We make an attempt to extract compiler options from CMake
 get_property(compile_options DIRECTORY PROPERTY COMPILE_OPTIONS)
-message("Compile with options: ${compile_options}")
-
-message("Makefile is at: ${CMAKE_CURRENT_SOURCE_DIR}/Makefile")
+message("DEBUG: Compile with options: ${compile_options}")
+message("DEBUG: Makefile is at: ${CMAKE_CURRENT_SOURCE_DIR}/Makefile")
 
 add_custom_command(
     OUTPUT
@@ -30,6 +27,7 @@ add_custom_command(
         cp -r ${CMAKE_CURRENT_BINARY_DIR}/build/libminimusllibc.a ${CMAKE_CURRENT_BINARY_DIR}/libminimusllibc.a
     COMMAND
         cp -r ${CMAKE_CURRENT_BINARY_DIR}/build/include ${CMAKE_CURRENT_BINARY_DIR}/
+    COMMENT "Building minimusllibc"
 )
 
 add_custom_target(

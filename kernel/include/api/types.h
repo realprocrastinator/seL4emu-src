@@ -21,7 +21,9 @@
 
 typedef word_t prio_t;
 typedef uint64_t ticks_t;
+#ifndef CONFIG_SEL4_USE_EMULATION
 typedef uint64_t time_t;
+#endif
 
 enum domainConstants {
     minDom = 0,

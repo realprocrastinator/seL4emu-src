@@ -49,6 +49,18 @@ typedef word_t irq_t;
 #define IRQT_TO_IRQ(irqt) (irqt)
 #endif
 
+
+#ifdef CONFIG_SEL4_USE_EMULATION
+/**
+ * This is a verey hacky way to solve the circular dependencies. 
+ * The problem is this header file only provides prototype but no definition.
+ * While the real definition is machine dependent, and is defined in plat/{platform}/machine/interrupt.h
+ * Unfortunately, that interrupt.h file depends on plat/machine.h, which depends on us     
+ *  
+ */
+
+
+#else
 /**
  * Return a currently pending IRQ.
  *
@@ -115,4 +127,4 @@ static inline void handleSpuriousIRQ(void);
  * @param[in]  irq   The irq
  */
 static inline void handleReservedIRQ(irq_t irq);
-
+#endif

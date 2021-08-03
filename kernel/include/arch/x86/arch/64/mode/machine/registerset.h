@@ -72,7 +72,13 @@ enum _register {
     n_contextRegisters      = 24    /* 0xc0 */
 };
 
+#ifdef CONFIG_SEL4_USE_EMULATION
+/* register_t already defined in glibc */
+#include <sys/types.h>
+#include <sel4/sel4_arch/constants.h>
+#else
 typedef uint32_t register_t;
+#endif
 
 enum messageSizes {
     n_msgRegisters = seL4_FastMessageRegisters,

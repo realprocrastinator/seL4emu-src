@@ -110,6 +110,9 @@
 #include <plat/machine.h>
 #include <plat_mode/machine/hardware_gen.h>
 #include <arch/kernel/tlb_bitmap_defs.h>
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <hardware.h> // for KERNEL_ELF_PADDR_TOP
+#endif
 
 /* ensure the user top and tlb bitmap do not overlap if multicore */
 #ifdef ENABLE_SMP_SUPPORT

@@ -21,4 +21,10 @@ int mini_connect (int, const struct sockaddr *, socklen_t);
 int mini_listen (int, int);
 int mini_accept (int, struct sockaddr *__restrict, socklen_t *__restrict);
 
+/* process id */
+pid_t mini_getpid(void);
+
+/* memory */
+
+
 long mini_syscall(long, ...);

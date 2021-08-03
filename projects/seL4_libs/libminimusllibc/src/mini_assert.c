@@ -2,7 +2,7 @@
 #include "../include/mini_string.h"
 #include "../include/mini_stdio.h"
 
-_Noreturn void abort(void) {
+_Noreturn void mini_abort(void) {
   // raise(SIGABRT);
 
 	/* If there was a SIGABRT handler installed and it returned, or if
@@ -31,5 +31,5 @@ _Noreturn void abort(void) {
 _Noreturn void __mini_assert_fail(const char *expr, const char *file, int line, const char *func)
 {
 	mini_printf("seL4 emulation assertion failed: %s (%s: %s: %d)\n", expr, file, func, line);
-	abort();
+	mini_abort();
 }

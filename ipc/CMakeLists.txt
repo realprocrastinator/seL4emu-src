@@ -68,8 +68,8 @@ cdl_ld("${CMAKE_CURRENT_BINARY_DIR}/spec.cdl" capdl_spec
 DeclareCDLRootImage("${CMAKE_CURRENT_BINARY_DIR}/spec.cdl" capdl_spec ELF ${elf_files} ELF_DEPENDS ${elf_targets})
 
 
-set(FINISH_COMPLETION_TEXT "Assertion failed")
-set(START_COMPLETION_TEXT "Assertion failed")
+set(FINISH_COMPLETION_TEXT "dog")
+set(START_COMPLETION_TEXT "lazy")
 configure_file(${SEL4_TUTORIALS_DIR}/tools/expect.py ${CMAKE_BINARY_DIR}/check @ONLY)
 include(simulation)
 GenerateSimulateScript()

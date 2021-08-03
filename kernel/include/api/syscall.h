@@ -6,7 +6,9 @@
 
 #pragma once
 
+#ifdef CONFIG_SEL4_USE_EMULATION
 #include <config.h> // for arch/api/syscall.h
+#endif
 #include <machine.h>
 #include <api/failures.h>
 #include <model/statedata.h>

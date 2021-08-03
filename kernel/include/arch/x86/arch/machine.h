@@ -244,6 +244,14 @@ static inline word_t x86_read_fs_base_impl(void);
 static inline void x86_write_gs_base_impl(word_t base);
 static inline word_t x86_read_gs_base_impl(void);
 
+/**
+ * For the emulation building, we can't include the machine specific definition here,
+ * so we provide our own to survive the compilation.
+ */
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <emu_mode/machine.h>
+#endif
+
 #ifdef CONFIG_FSGSBASE_MSR
 
 static inline void x86_write_fs_base_impl(word_t base)

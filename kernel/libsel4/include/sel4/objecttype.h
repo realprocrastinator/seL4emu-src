@@ -5,6 +5,12 @@
  */
 
 #pragma once
+
+#ifdef CONFIG_SEL4_USE_EMULATION
+/* we need a type definition to survive the compilation */
+#include <sel4/sel4_arch/types.h>
+#endif
+
 typedef enum api_object {
     seL4_UntypedObject,
     seL4_TCBObject,

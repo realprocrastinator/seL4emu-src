@@ -7,7 +7,11 @@
 #pragma once
 
 #include <config.h>
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <emu/emu_types.h>
+#else
 #include <types.h>
+#endif
 #include <util.h>
 
 #include <arch/object/structures.h>
@@ -17,7 +21,7 @@
 #include <plat/machine/acpi.h>
 #include <plat/machine/ioapic.h>
 #include <plat/machine/pic.h>
-#include <plat/machine/intel-vtd.h>
+#include <plat/machine/intel-vtd.h> 
 
 static inline void handleReservedIRQ(irq_t irq)
 {

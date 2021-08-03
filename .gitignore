@@ -20,4 +20,9 @@ projects/camkes-vm-linux/
 # camkes auto gen files
 hello-dump*
 
-**/.allocator.obj
+# ipc auto gen files 
+ipc/.allocator.obj
+ipc/.tute_config
+
+# formatting
+.clang-format

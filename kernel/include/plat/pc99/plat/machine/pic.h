@@ -6,7 +6,11 @@
 
 #pragma once
 
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <emu/emu_types.h>
+#else
 #include <types.h>
+#endif
 #include <plat/machine.h>
 
 /* Even if not using the PIC as the main interrupt controller we still

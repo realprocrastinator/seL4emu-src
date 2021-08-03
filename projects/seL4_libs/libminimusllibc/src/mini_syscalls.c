@@ -6,6 +6,7 @@
 #include "../include/mini_syscalls.h"
 #include "mini_internal_syscall.h"
 
+
 ssize_t mini_read(int fd, void *buf, size_t count)
 {
 	return mini_syscall_cp(SYS_read, fd, buf, count);
@@ -86,6 +87,12 @@ int mini_unlink(const char *path)
 #ifdef SYS_unlink
 	return mini_syscall(SYS_unlink, path);
 #else
-	return syscall(SYS_unlinkat, AT_FDCWD, path, 0);
+	return mini_syscall(SYS_unlinkat, AT_FDCWD, path, 0);
 #endif
 }
+
+pid_t mini_getpid(void)
+{
+	return __mini_syscall(SYS_getpid);
+}
+

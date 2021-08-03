@@ -94,13 +94,17 @@ void __builtin_unreachable(void);
 */
 /* Thos symbols conflicts when linking to std libc*/
 #ifndef CONFIG_SEL4_USE_EMULATION
-void halt(void) NORETURN;
-void memzero(void *s, unsigned long n);
 void *memset(void *s, unsigned long c, unsigned long n) VISIBLE;
 void *memcpy(void *ptr_dst, const void *ptr_src, unsigned long n) VISIBLE;
 int PURE strncmp(const char *s1, const char *s2, int n);
+#else
+/* libc provides us the prototypes */
+#include <string.h>
+extern int putchar(int c);
 #endif
 
+void halt(void) NORETURN;
+void memzero(void *s, unsigned long n);
 long CONST char_to_long(char c);
 long PURE str_to_long(const char *str);
 

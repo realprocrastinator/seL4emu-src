@@ -8,6 +8,10 @@
 
 #include <autoconf.h>
 
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <sel4/macros.h>
+#endif
+
 #define TLS_GDT_ENTRY   7
 #define TLS_GDT_SELECTOR ((TLS_GDT_ENTRY << 3) | 3)
 

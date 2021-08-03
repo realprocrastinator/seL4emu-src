@@ -10,6 +10,9 @@
 #include <config.h>
 #include <sel4/sel4_arch/objecttype.h>
 #include <sel4/arch/objecttype.h>
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <arch/types.h>
+#endif
 
 #define pageType PageObject4K
 

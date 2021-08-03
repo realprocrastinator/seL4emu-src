@@ -6,6 +6,9 @@
 
 #pragma once
 
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <emu_mode/machine.h>
+#else
 #include <config.h>
 #include <hardware.h>
 #include <arch/model/statedata.h>
@@ -333,4 +336,4 @@ static inline void x86_set_tls_segment_base(word_t tls_base)
 {
     x86_write_fs_base(tls_base, SMP_TERNARY(getCurrentCPUIndex(), 0));
 }
-
+#endif

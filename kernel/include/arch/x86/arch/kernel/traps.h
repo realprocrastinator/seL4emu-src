@@ -8,6 +8,10 @@
 
 #include <config.h>
 #include <util.h>
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <arch/machine.h> // for prototype of x86_load_fsgs_base
+#include <arch/api/syscall.h> // for syscall_t
+#endif
 
 static inline void arch_c_entry_hook(void)
 {
@@ -29,16 +33,31 @@ void c_handle_syscall(word_t cptr, word_t msgInfo, syscall_t syscall, word_t rep
 #else
 void c_handle_syscall(word_t cptr, word_t msgInfo, syscall_t syscall)
 #endif
-VISIBLE NORETURN;
+#ifndef CONFIG_SEL4_USE_EMULATION
+VISIBLE NORETURN
+#endif
+;
 
 void restore_user_context(void)
-VISIBLE NORETURN;
+#ifndef CONFIG_SEL4_USE_EMULATION
+VISIBLE NORETURN
+#endif
+;
 
 void c_nested_interrupt(int irq)
-VISIBLE;
+#ifndef CONFIG_SEL4_USE_EMULATION
+VISIBLE
+#endif
+;
 
 void c_handle_interrupt(int irq, int syscall)
-VISIBLE NORETURN;
+#ifndef CONFIG_SEL4_USE_EMULATION
+VISIBLE NORETURN
+#endif
+;
 
 void c_handle_vmexit(void)
-VISIBLE NORETURN;
+#ifndef CONFIG_SEL4_USE_EMULATION
+VISIBLE NORETURN
+#endif
+;
