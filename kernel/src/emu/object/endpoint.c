@@ -22,8 +22,9 @@ static inline void ep_ptr_set_queue(endpoint_t *epptr, tcb_queue_t queue) {
 }
 
 #ifdef CONFIG_KERNEL_MCS
-void sendIPC(bool_t blocking, bool_t do_call, word_t badge, bool_t canGrant, bool_t canGrantReply,
-             bool_t canDonate, tcb_t *thread, endpoint_t *epptr)
+#error "Not supported yet!"
+// void sendIPC(bool_t blocking, bool_t do_call, word_t badge, bool_t canGrant, bool_t canGrantReply,
+//              bool_t canDonate, tcb_t *thread, endpoint_t *epptr)
 #else
 void sendIPC(bool_t blocking, bool_t do_call, word_t badge, bool_t canGrant, bool_t canGrantReply,
              tcb_t *thread, endpoint_t *epptr)
@@ -76,26 +77,27 @@ void sendIPC(bool_t blocking, bool_t do_call, word_t badge, bool_t canGrant, boo
     doIPCTransfer(thread, epptr, badge, canGrant, dest);
 
 #ifdef CONFIG_KERNEL_MCS
-    reply_t *reply = REPLY_PTR(thread_state_get_replyObject(dest->tcbState));
-    if (reply) {
-      reply_unlink(reply, dest);
-    }
+#error "Not supported yet!"
+    // reply_t *reply = REPLY_PTR(thread_state_get_replyObject(dest->tcbState));
+    // if (reply) {
+    //   reply_unlink(reply, dest);
+    // }
 
-    if (do_call || seL4_Fault_ptr_get_seL4_FaultType(&thread->tcbFault) != seL4_Fault_NullFault) {
-      if (reply != NULL && (canGrant || canGrantReply)) {
-        reply_push(thread, dest, reply, canDonate);
-      } else {
-        setThreadState(thread, ThreadState_Inactive);
-      }
-    } else if (canDonate && dest->tcbSchedContext == NULL) {
-      schedContext_donate(thread->tcbSchedContext, dest);
-    }
+    // if (do_call || seL4_Fault_ptr_get_seL4_FaultType(&thread->tcbFault) != seL4_Fault_NullFault) {
+    //   if (reply != NULL && (canGrant || canGrantReply)) {
+    //     reply_push(thread, dest, reply, canDonate);
+    //   } else {
+    //     setThreadState(thread, ThreadState_Inactive);
+    //   }
+    // } else if (canDonate && dest->tcbSchedContext == NULL) {
+    //   schedContext_donate(thread->tcbSchedContext, dest);
+    // }
 
-    /* blocked threads should have enough budget to get out of the kernel */
-    assert(dest->tcbSchedContext == NULL || refill_sufficient(dest->tcbSchedContext, 0));
-    assert(dest->tcbSchedContext == NULL || refill_ready(dest->tcbSchedContext));
-    setThreadState(dest, ThreadState_Running);
-    possibleSwitchTo(dest);
+    // /* blocked threads should have enough budget to get out of the kernel */
+    // assert(dest->tcbSchedContext == NULL || refill_sufficient(dest->tcbSchedContext, 0));
+    // assert(dest->tcbSchedContext == NULL || refill_ready(dest->tcbSchedContext));
+    // setThreadState(dest, ThreadState_Running);
+    // possibleSwitchTo(dest);
 #else
     bool_t replyCanGrant = thread_state_ptr_get_blockingIPCCanGrant(&dest->tcbState);
     ;
@@ -117,7 +119,8 @@ void sendIPC(bool_t blocking, bool_t do_call, word_t badge, bool_t canGrant, boo
 }
 
 #ifdef CONFIG_KERNEL_MCS
-void receiveIPC(tcb_t *thread, cap_t cap, bool_t isBlocking, cap_t replyCap)
+#error "Not supported yet!"
+// void receiveIPC(tcb_t *thread, cap_t cap, bool_t isBlocking, cap_t replyCap)
 #else
 void receiveIPC(tcb_t *thread, cap_t cap, bool_t isBlocking)
 #endif
@@ -131,14 +134,15 @@ void receiveIPC(tcb_t *thread, cap_t cap, bool_t isBlocking)
   epptr = EP_PTR(cap_endpoint_cap_get_capEPPtr(cap));
 
 #ifdef CONFIG_KERNEL_MCS
-  reply_t *replyPtr = NULL;
-  if (cap_get_capType(replyCap) == cap_reply_cap) {
-    replyPtr = REPLY_PTR(cap_reply_cap_get_capReplyPtr(replyCap));
-    if (unlikely(replyPtr->replyTCB != NULL && replyPtr->replyTCB != thread)) {
-      userError("Reply object already has unexecuted reply!");
-      cancelIPC(replyPtr->replyTCB);
-    }
-  }
+#error "Not supported yet!"
+  // reply_t *replyPtr = NULL;
+  // if (cap_get_capType(replyCap) == cap_reply_cap) {
+  //   replyPtr = REPLY_PTR(cap_reply_cap_get_capReplyPtr(replyCap));
+  //   if (unlikely(replyPtr->replyTCB != NULL && replyPtr->replyTCB != thread)) {
+  //     userError("Reply object already has unexecuted reply!");
+  //     cancelIPC(replyPtr->replyTCB);
+  //   }
+  // }
 #endif
 
   /* Check for anything waiting in the notification */
@@ -147,14 +151,15 @@ void receiveIPC(tcb_t *thread, cap_t cap, bool_t isBlocking)
     completeSignal(ntfnPtr, thread);
   } else {
 #ifdef CONFIG_KERNEL_MCS
+#error "Not supported yet!"
     /* If this is a blocking recv and we didn't have a pending notification,
      * then if we are running on an SC from a bound notification, then we
      * need to return it so that we can passively wait on the EP for potentially
      * SC donations from client threads.
      */
-    if (ntfnPtr && isBlocking) {
-      maybeReturnSchedContext(ntfnPtr, thread);
-    }
+    // if (ntfnPtr && isBlocking) {
+    //   maybeReturnSchedContext(ntfnPtr, thread);
+    // }
 #endif
     switch (endpoint_ptr_get_state(epptr)) {
     case EPState_Idle:
@@ -166,10 +171,11 @@ void receiveIPC(tcb_t *thread, cap_t cap, bool_t isBlocking)
         thread_state_ptr_set_tsType(&thread->tcbState, ThreadState_BlockedOnReceive);
         thread_state_ptr_set_blockingObject(&thread->tcbState, EP_REF(epptr));
 #ifdef CONFIG_KERNEL_MCS
-        thread_state_ptr_set_replyObject(&thread->tcbState, REPLY_REF(replyPtr));
-        if (replyPtr) {
-          replyPtr->replyTCB = thread;
-        }
+#error "Not supported yet!"
+        // thread_state_ptr_set_replyObject(&thread->tcbState, REPLY_REF(replyPtr));
+        // if (replyPtr) {
+        //   replyPtr->replyTCB = thread;
+        // }
 #else
         thread_state_ptr_set_blockingIPCCanGrant(&thread->tcbState,
                                                  cap_endpoint_cap_get_capCanGrant(cap));
@@ -221,19 +227,20 @@ void receiveIPC(tcb_t *thread, cap_t cap, bool_t isBlocking)
       do_call = thread_state_ptr_get_blockingIPCIsCall(&sender->tcbState);
 
 #ifdef CONFIG_KERNEL_MCS
-      if (do_call || seL4_Fault_get_seL4_FaultType(sender->tcbFault) != seL4_Fault_NullFault) {
-        if ((canGrant || canGrantReply) && replyPtr != NULL) {
-          bool_t canDonate = sender->tcbSchedContext != NULL &&
-                             seL4_Fault_get_seL4_FaultType(sender->tcbFault) != seL4_Fault_Timeout;
-          reply_push(sender, thread, replyPtr, canDonate);
-        } else {
-          setThreadState(sender, ThreadState_Inactive);
-        }
-      } else {
-        setThreadState(sender, ThreadState_Running);
-        possibleSwitchTo(sender);
-        assert(sender->tcbSchedContext == NULL || refill_sufficient(sender->tcbSchedContext, 0));
-      }
+#error "Not supported yet!"
+      // if (do_call || seL4_Fault_get_seL4_FaultType(sender->tcbFault) != seL4_Fault_NullFault) {
+      //   if ((canGrant || canGrantReply) && replyPtr != NULL) {
+      //     bool_t canDonate = sender->tcbSchedContext != NULL &&
+      //                        seL4_Fault_get_seL4_FaultType(sender->tcbFault) != seL4_Fault_Timeout;
+      //     reply_push(sender, thread, replyPtr, canDonate);
+      //   } else {
+      //     setThreadState(sender, ThreadState_Inactive);
+      //   }
+      // } else {
+      //   setThreadState(sender, ThreadState_Running);
+      //   possibleSwitchTo(sender);
+      //   assert(sender->tcbSchedContext == NULL || refill_sufficient(sender->tcbSchedContext, 0));
+      // }
 #else
       if (do_call) {
         if (canGrant || canGrantReply) {
@@ -281,8 +288,9 @@ void cancelIPC(tcb_t *tptr) {
   thread_state_t *state = &tptr->tcbState;
 
 #ifdef CONFIG_KERNEL_MCS
+#error "Not supported yet!"
   /* cancel ipc cancels all faults */
-  seL4_Fault_NullFault_ptr_new(&tptr->tcbFault);
+  // seL4_Fault_NullFault_ptr_new(&tptr->tcbFault);
 #endif
 
   switch (thread_state_ptr_get_tsType(state)) {
@@ -307,10 +315,11 @@ void cancelIPC(tcb_t *tptr) {
     }
 
 #ifdef CONFIG_KERNEL_MCS
-    reply_t *reply = REPLY_PTR(thread_state_get_replyObject(tptr->tcbState));
-    if (reply != NULL) {
-      reply_unlink(reply, tptr);
-    }
+#error "Not supported yet!"
+    // reply_t *reply = REPLY_PTR(thread_state_get_replyObject(tptr->tcbState));
+    // if (reply != NULL) {
+    //   reply_unlink(reply, tptr);
+    // }
 #endif
     setThreadState(tptr, ThreadState_Inactive);
     break;
@@ -322,7 +331,8 @@ void cancelIPC(tcb_t *tptr) {
 
   case ThreadState_BlockedOnReply: {
 #ifdef CONFIG_KERNEL_MCS
-    reply_remove_tcb(tptr);
+#error "Not supported yet!"
+    // reply_remove_tcb(tptr);
 #else
     cte_t *slot, *callerCap;
 
@@ -360,16 +370,17 @@ void cancelAllIPC(endpoint_t *epptr) {
     /* Set all blocked threads to restart */
     for (; thread; thread = thread->tcbEPNext) {
 #ifdef CONFIG_KERNEL_MCS
-      reply_t *reply = REPLY_PTR(thread_state_get_replyObject(thread->tcbState));
-      if (reply != NULL) {
-        reply_unlink(reply, thread);
-      }
-      if (seL4_Fault_get_seL4_FaultType(thread->tcbFault) == seL4_Fault_NullFault) {
-        setThreadState(thread, ThreadState_Restart);
-        possibleSwitchTo(thread);
-      } else {
-        setThreadState(thread, ThreadState_Inactive);
-      }
+#error "Not supported yet!"
+      // reply_t *reply = REPLY_PTR(thread_state_get_replyObject(thread->tcbState));
+      // if (reply != NULL) {
+      //   reply_unlink(reply, thread);
+      // }
+      // if (seL4_Fault_get_seL4_FaultType(thread->tcbFault) == seL4_Fault_NullFault) {
+      //   setThreadState(thread, ThreadState_Restart);
+      //   possibleSwitchTo(thread);
+      // } else {
+      //   setThreadState(thread, ThreadState_Inactive);
+      // }
 #else
       setThreadState(thread, ThreadState_Restart);
       SCHED_ENQUEUE(thread);
@@ -403,17 +414,18 @@ void cancelBadgedSends(endpoint_t *epptr, word_t badge) {
       word_t b = thread_state_ptr_get_blockingIPCBadge(&thread->tcbState);
       next = thread->tcbEPNext;
 #ifdef CONFIG_KERNEL_MCS
+#error "Not supported yet!"
       /* senders do not have reply objects in their state, and we are only cancelling sends */
-      assert(REPLY_PTR(thread_state_get_replyObject(thread->tcbState)) == NULL);
-      if (b == badge) {
-        if (seL4_Fault_get_seL4_FaultType(thread->tcbFault) == seL4_Fault_NullFault) {
-          setThreadState(thread, ThreadState_Restart);
-          possibleSwitchTo(thread);
-        } else {
-          setThreadState(thread, ThreadState_Inactive);
-        }
-        queue = tcbEPDequeue(thread, queue);
-      }
+      // assert(REPLY_PTR(thread_state_get_replyObject(thread->tcbState)) == NULL);
+      // if (b == badge) {
+      //   if (seL4_Fault_get_seL4_FaultType(thread->tcbFault) == seL4_Fault_NullFault) {
+      //     setThreadState(thread, ThreadState_Restart);
+      //     possibleSwitchTo(thread);
+      //   } else {
+      //     setThreadState(thread, ThreadState_Inactive);
+      //   }
+      //   queue = tcbEPDequeue(thread, queue);
+      // }
 #else
       if (b == badge) {
         setThreadState(thread, ThreadState_Restart);
@@ -439,10 +451,11 @@ void cancelBadgedSends(endpoint_t *epptr, word_t badge) {
 }
 
 #ifdef CONFIG_KERNEL_MCS
-void reorderEP(endpoint_t *epptr, tcb_t *thread) {
-  tcb_queue_t queue = ep_ptr_get_queue(epptr);
-  queue = tcbEPDequeue(thread, queue);
-  queue = tcbEPAppend(thread, queue);
-  ep_ptr_set_queue(epptr, queue);
-}
+#error "Not supported yet!"
+// void reorderEP(endpoint_t *epptr, tcb_t *thread) {
+//   tcb_queue_t queue = ep_ptr_get_queue(epptr);
+//   queue = tcbEPDequeue(thread, queue);
+//   queue = tcbEPAppend(thread, queue);
+//   ep_ptr_set_queue(epptr, queue);
+// }
 #endif

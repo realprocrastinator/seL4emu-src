@@ -35,7 +35,8 @@ static void emptySlot(cte_t *slot, cap_t cleanupInfo);
 static exception_t reduceZombie(cte_t *slot, bool_t exposed);
 
 #ifdef CONFIG_KERNEL_MCS
-#define CNODE_LAST_INVOCATION CNodeRotate
+#error "Not supported yet!"
+// #define CNODE_LAST_INVOCATION CNodeRotate
 #else
 #define CNODE_LAST_INVOCATION CNodeSaveCaller
 #endif

@@ -12,8 +12,9 @@
 #include <machine/debug.h>
 #include <types.h>
 #ifdef CONFIG_KERNEL_MCS
-#include <mode/api/ipc_buffer.h>
-#include <object/schedcontext.h>
+#error "Not supported yet!"
+// #include <mode/api/ipc_buffer.h>
+// #include <object/schedcontext.h>
 #endif
 #include <machine/registerset.h>
 
@@ -125,9 +126,10 @@ bool_t handleFaultReply(tcb_t *receiver, tcb_t *sender) {
     return (label == 0);
 
 #ifdef CONFIG_KERNEL_MCS
-  case seL4_Fault_Timeout:
-    copyMRsFaultReply(sender, receiver, MessageID_TimeoutReply, MIN(length, n_timeoutMessage));
-    return (label == 0);
+#error "Not supported yet!"
+  // case seL4_Fault_Timeout:
+  //   copyMRsFaultReply(sender, receiver, MessageID_TimeoutReply, MIN(length, n_timeoutMessage));
+  //   return (label == 0);
 #endif
 #ifdef CONFIG_HARDWARE_DEBUG_API
   case seL4_Fault_DebugException: {
@@ -208,16 +210,17 @@ word_t setMRs_fault(tcb_t *sender, tcb_t *receiver, word_t *receiveIPCBuffer) {
   }
 
 #ifdef CONFIG_KERNEL_MCS
-  case seL4_Fault_Timeout: {
-    word_t len = setMR(receiver, receiveIPCBuffer, seL4_Timeout_Data,
-                       seL4_Fault_Timeout_get_badge(sender->tcbFault));
-    if (sender->tcbSchedContext) {
-      time_t consumed = schedContext_updateConsumed(sender->tcbSchedContext);
-      return mode_setTimeArg(len, consumed, receiveIPCBuffer, receiver);
-    } else {
-      return len;
-    }
-  }
+#error "Not supported yet!"
+  // case seL4_Fault_Timeout: {
+  //   word_t len = setMR(receiver, receiveIPCBuffer, seL4_Timeout_Data,
+  //                      seL4_Fault_Timeout_get_badge(sender->tcbFault));
+  //   if (sender->tcbSchedContext) {
+  //     time_t consumed = schedContext_updateConsumed(sender->tcbSchedContext);
+  //     return mode_setTimeArg(len, consumed, receiveIPCBuffer, receiver);
+  //   } else {
+  //     return len;
+  //   }
+  // }
 #endif
 #ifdef CONFIG_HARDWARE_DEBUG_API
   case seL4_Fault_DebugException: {

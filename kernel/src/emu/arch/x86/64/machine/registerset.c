@@ -67,8 +67,9 @@ word_t Mode_sanitiseRegister(register_t reg, word_t v)
 }
 
 #ifdef CONFIG_KERNEL_MCS
-word_t getNBSendRecvDest(void)
-{
-    return getRegister(NODE_STATE(ksCurThread), nbsendRecvDest);
-}
+#error "Not supported yet!"
+// word_t getNBSendRecvDest(void)
+// {
+//     return getRegister(NODE_STATE(ksCurThread), nbsendRecvDest);
+// }
 #endif

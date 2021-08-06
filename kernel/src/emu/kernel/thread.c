@@ -14,7 +14,8 @@
 #include <object.h>
 #include <util.h>
 #ifdef CONFIG_KERNEL_MCS
-#include <object/schedcontext.h>
+#error "Not supported yet!"
+// #include <object/schedcontext.h>
 #endif
 #include <arch/kernel/thread.h>
 #include <arch/machine.h>
@@ -79,8 +80,9 @@ void suspend(tcb_t *target) {
   setThreadState(target, ThreadState_Inactive);
   tcbSchedDequeue(target);
 #ifdef CONFIG_KERNEL_MCS
-  tcbReleaseRemove(target);
-  schedContext_cancelYieldTo(target);
+#error "Not supported yet!"
+  // tcbReleaseRemove(target);
+  // schedContext_cancelYieldTo(target);
 #endif
 }
 
@@ -88,11 +90,12 @@ void restart(tcb_t *target) {
   if (isStopped(target)) {
     cancelIPC(target);
 #ifdef CONFIG_KERNEL_MCS
-    setThreadState(target, ThreadState_Restart);
-    schedContext_resume(target->tcbSchedContext);
-    if (isSchedulable(target)) {
-      possibleSwitchTo(target);
-    }
+#error "Not supported yet!"
+    // setThreadState(target, ThreadState_Restart);
+    // schedContext_resume(target->tcbSchedContext);
+    // if (isSchedulable(target)) {
+    //   possibleSwitchTo(target);
+    // }
 #else
     setupReplyMaster(target);
     setThreadState(target, ThreadState_Restart);
@@ -117,22 +120,24 @@ void doIPCTransfer(tcb_t *sender, endpoint_t *endpoint, word_t badge, bool_t gra
 }
 
 #ifdef CONFIG_KERNEL_MCS
-void doReplyTransfer(tcb_t *sender, reply_t *reply, bool_t grant)
+#error "Not supported yet!"
+// void doReplyTransfer(tcb_t *sender, reply_t *reply, bool_t grant)
 #else
 void doReplyTransfer(tcb_t *sender, tcb_t *receiver, cte_t *slot, bool_t grant)
 #endif
 {
 #ifdef CONFIG_KERNEL_MCS
-  if (reply->replyTCB == NULL ||
-      thread_state_get_tsType(reply->replyTCB->tcbState) != ThreadState_BlockedOnReply) {
-    /* nothing to do */
-    return;
-  }
+#error "Not supported yet!"
+  // if (reply->replyTCB == NULL ||
+  //     thread_state_get_tsType(reply->replyTCB->tcbState) != ThreadState_BlockedOnReply) {
+  //   /* nothing to do */
+  //   return;
+  // }
 
-  tcb_t *receiver = reply->replyTCB;
-  reply_remove(reply, receiver);
-  assert(thread_state_get_replyObject(receiver->tcbState) == REPLY_REF(0));
-  assert(reply->replyTCB == NULL);
+  // tcb_t *receiver = reply->replyTCB;
+  // reply_remove(reply, receiver);
+  // assert(thread_state_get_replyObject(receiver->tcbState) == REPLY_REF(0));
+  // assert(reply->replyTCB == NULL);
 #else
   assert(thread_state_get_tsType(receiver->tcbState) == ThreadState_BlockedOnReply);
 #endif
@@ -141,7 +146,8 @@ void doReplyTransfer(tcb_t *sender, tcb_t *receiver, cte_t *slot, bool_t grant)
   if (likely(fault_type == seL4_Fault_NullFault)) {
     doIPCTransfer(sender, NULL, 0, grant, receiver);
 #ifdef CONFIG_KERNEL_MCS
-    setThreadState(receiver, ThreadState_Running);
+#error "Not supported yet!"
+    // setThreadState(receiver, ThreadState_Running);
 #else
     /** GHOSTUPD: "(True, gs_set_assn cteDeleteOne_'proc (ucast cap_reply_cap))" */
     cteDeleteOne(slot);
@@ -166,19 +172,20 @@ void doReplyTransfer(tcb_t *sender, tcb_t *receiver, cte_t *slot, bool_t grant)
   }
 
 #ifdef CONFIG_KERNEL_MCS
-  if (receiver->tcbSchedContext && isRunnable(receiver)) {
-    if ((refill_ready(receiver->tcbSchedContext) &&
-         refill_sufficient(receiver->tcbSchedContext, 0))) {
-      possibleSwitchTo(receiver);
-    } else {
-      if (validTimeoutHandler(receiver) && fault_type != seL4_Fault_Timeout) {
-        current_fault = seL4_Fault_Timeout_new(receiver->tcbSchedContext->scBadge);
-        handleTimeout(receiver);
-      } else {
-        postpone(receiver->tcbSchedContext);
-      }
-    }
-  }
+#error "Not supported yet!"
+  // if (receiver->tcbSchedContext && isRunnable(receiver)) {
+  //   if ((refill_ready(receiver->tcbSchedContext) &&
+  //        refill_sufficient(receiver->tcbSchedContext, 0))) {
+  //     possibleSwitchTo(receiver);
+  //   } else {
+  //     if (validTimeoutHandler(receiver) && fault_type != seL4_Fault_Timeout) {
+  //       current_fault = seL4_Fault_Timeout_new(receiver->tcbSchedContext->scBadge);
+  //       handleTimeout(receiver);
+  //     } else {
+  //       postpone(receiver->tcbSchedContext);
+  //     }
+  //   }
+  // }
 #endif
 }
 
@@ -296,6 +303,7 @@ void doNBRecvFailedTransfer(tcb_t *thread) {
 // }
 
 #ifdef CONFIG_KERNEL_MCS
+#error "Not supported yet!"
 // static void switchSchedContext(void)
 // {
 //     if (unlikely(NODE_STATE(ksCurSC) != NODE_STATE(ksCurThread)->tcbSchedContext) &&
@@ -454,33 +462,34 @@ void setDomain(tcb_t *tptr, dom_t dom) {
 
 void setMCPriority(tcb_t *tptr, prio_t mcp) { tptr->tcbMCP = mcp; }
 #ifdef CONFIG_KERNEL_MCS
-void setPriority(tcb_t *tptr, prio_t prio) {
-  switch (thread_state_get_tsType(tptr->tcbState)) {
-  case ThreadState_Running:
-  case ThreadState_Restart:
-    if (thread_state_get_tcbQueued(tptr->tcbState) || tptr == NODE_STATE(ksCurThread)) {
-      tcbSchedDequeue(tptr);
-      tptr->tcbPriority = prio;
-      SCHED_ENQUEUE(tptr);
-      rescheduleRequired();
-    } else {
-      tptr->tcbPriority = prio;
-    }
-    break;
-  case ThreadState_BlockedOnReceive:
-  case ThreadState_BlockedOnSend:
-    tptr->tcbPriority = prio;
-    reorderEP(EP_PTR(thread_state_get_blockingObject(tptr->tcbState)), tptr);
-    break;
-  case ThreadState_BlockedOnNotification:
-    tptr->tcbPriority = prio;
-    reorderNTFN(NTFN_PTR(thread_state_get_blockingObject(tptr->tcbState)), tptr);
-    break;
-  default:
-    tptr->tcbPriority = prio;
-    break;
-  }
-}
+#error "Not supported yet!"
+// void setPriority(tcb_t *tptr, prio_t prio) {
+//   switch (thread_state_get_tsType(tptr->tcbState)) {
+//   case ThreadState_Running:
+//   case ThreadState_Restart:
+//     if (thread_state_get_tcbQueued(tptr->tcbState) || tptr == NODE_STATE(ksCurThread)) {
+//       tcbSchedDequeue(tptr);
+//       tptr->tcbPriority = prio;
+//       SCHED_ENQUEUE(tptr);
+//       rescheduleRequired();
+//     } else {
+//       tptr->tcbPriority = prio;
+//     }
+//     break;
+//   case ThreadState_BlockedOnReceive:
+//   case ThreadState_BlockedOnSend:
+//     tptr->tcbPriority = prio;
+//     reorderEP(EP_PTR(thread_state_get_blockingObject(tptr->tcbState)), tptr);
+//     break;
+//   case ThreadState_BlockedOnNotification:
+//     tptr->tcbPriority = prio;
+//     reorderNTFN(NTFN_PTR(thread_state_get_blockingObject(tptr->tcbState)), tptr);
+//     break;
+//   default:
+//     tptr->tcbPriority = prio;
+//     break;
+//   }
+// }
 #else
 void setPriority(tcb_t *tptr, prio_t prio) {
   tcbSchedDequeue(tptr);

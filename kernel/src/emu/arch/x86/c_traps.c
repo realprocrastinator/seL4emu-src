@@ -140,7 +140,8 @@ void slowpath(syscall_t syscall) {
 }
 
 #ifdef CONFIG_KERNEL_MCS
-void c_handle_syscall(word_t cptr, word_t msgInfo, syscall_t syscall, word_t reply)
+#error "Not supported yet!"
+// void c_handle_syscall(word_t cptr, word_t msgInfo, syscall_t syscall, word_t reply)
 #else
 void c_handle_syscall(word_t cptr, word_t msgInfo, syscall_t syscall)
 #endif

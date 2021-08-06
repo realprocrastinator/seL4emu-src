@@ -101,12 +101,13 @@ exception_t decodeUntypedInvocation(word_t invLabel, word_t length, cte_t *slot,
   }
 
 #ifdef CONFIG_KERNEL_MCS
-  if (newType == seL4_SchedContextObject && userObjSize < seL4_MinSchedContextBits) {
-    userError("Untyped retype: Requested a scheduling context too small.");
-    current_syscall_error.type = seL4_InvalidArgument;
-    current_syscall_error.invalidArgumentNumber = 1;
-    return EXCEPTION_SYSCALL_ERROR;
-  }
+#error "Not supported yet!"
+  // if (newType == seL4_SchedContextObject && userObjSize < seL4_MinSchedContextBits) {
+  //   userError("Untyped retype: Requested a scheduling context too small.");
+  //   current_syscall_error.type = seL4_InvalidArgument;
+  //   current_syscall_error.invalidArgumentNumber = 1;
+  //   return EXCEPTION_SYSCALL_ERROR;
+  // }
 #endif
 
   /* Lookup the destination CNode (where our caps will be placed in). */

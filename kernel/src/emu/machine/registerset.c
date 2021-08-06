@@ -10,6 +10,7 @@ const register_t fault_messages[][MAX_MSG_SIZE] = {
     [MessageID_Syscall] = SYSCALL_MESSAGE,
     [MessageID_Exception] = EXCEPTION_MESSAGE,
 #ifdef CONFIG_KERNEL_MCS
-    [MessageID_TimeoutReply] = TIMEOUT_REPLY_MESSAGE,
+#error "Not supported yet!"
+    // [MessageID_TimeoutReply] = TIMEOUT_REPLY_MESSAGE,
 #endif
 };

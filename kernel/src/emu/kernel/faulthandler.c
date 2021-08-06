@@ -13,6 +13,7 @@
 #include <arch/machine.h>
 
 #ifdef CONFIG_KERNEL_MCS
+#error "Not supported yet!"
 // void handleFault(tcb_t *tptr)
 // {
 //     bool_t hasFaultHandler = sendFaultIPC(tptr, TCB_PTR_CTE_PTR(tptr, tcbFaultHandler)->cap,

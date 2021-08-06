@@ -30,11 +30,12 @@ exception_t preemptionPoint(void) {
     if (isIRQPending()) {
       return EXCEPTION_PREEMPTED;
 #ifdef CONFIG_KERNEL_MCS
-    } else {
-      updateTimestamp();
-      if (!checkBudget()) {
-        return EXCEPTION_PREEMPTED;
-      }
+#error "Not supported yet!"
+    // } else {
+    //   updateTimestamp();
+    //   if (!checkBudget()) {
+    //     return EXCEPTION_PREEMPTED;
+    //   }
 #endif
     }
   }

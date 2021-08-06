@@ -205,8 +205,9 @@ void handleInterrupt(irq_t irq) {
 
   case IRQTimer:
 #ifdef CONFIG_KERNEL_MCS
-    ackDeadlineIRQ();
-    NODE_STATE(ksReprogram) = true;
+#error "Not supported yet!"
+    // ackDeadlineIRQ();
+    // NODE_STATE(ksReprogram) = true;
 #else
     timerTick();
     resetTimer();

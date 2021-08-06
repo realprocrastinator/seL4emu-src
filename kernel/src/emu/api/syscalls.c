@@ -378,8 +378,9 @@ exception_t handleVMFaultEvent(vm_fault_type_t vm_faultType) {
 }
 
 #ifdef CONFIG_KERNEL_MCS
-static exception_t handleInvocation(bool_t isCall, bool_t isBlocking, bool_t canDonate,
-                                    bool_t firstPhase, cptr_t cptr)
+#error "Not supported yet!"
+// static exception_t handleInvocation(bool_t isCall, bool_t isBlocking, bool_t canDonate,
+//                                     bool_t firstPhase, cptr_t cptr)
 #else
 static exception_t handleInvocation(bool_t isCall, bool_t isBlocking)
 #endif
@@ -463,7 +464,8 @@ static exception_t handleInvocation(bool_t isCall, bool_t isBlocking)
 }
 
 #ifdef CONFIG_KERNEL_MCS
-static inline lookupCap_ret_t lookupReply(void) {
+#error "Not supported yet!"
+// static inline lookupCap_ret_t lookupReply(void) {
   // word_t replyCPtr = getRegister(NODE_STATE(ksCurThread), replyRegister);
   // lookupCap_ret_t lu_ret = lookupCap(NODE_STATE(ksCurThread), replyCPtr);
   // if (unlikely(lu_ret.status != EXCEPTION_NONE)) {
@@ -481,8 +483,8 @@ static inline lookupCap_ret_t lookupReply(void) {
   //     return lu_ret;
   // }
 
-  return lu_ret;
-}
+//   return lu_ret;
+// }
 #else
 static void handleReply(void) {
   // cte_t *callerSlot;
@@ -520,7 +522,8 @@ static void handleReply(void) {
 #endif
 
 #ifdef CONFIG_KERNEL_MCS
-static void handleRecv(bool_t isBlocking, bool_t canReply)
+#error "Not supported yet!"
+// static void handleRecv(bool_t isBlocking, bool_t canReply)
 #else
 static void handleRecv(bool_t isBlocking)
 #endif
@@ -591,7 +594,8 @@ static void handleRecv(bool_t isBlocking)
 }
 
 #ifdef CONFIG_KERNEL_MCS
-static inline void mcsIRQ(irq_t irq) {
+#error "Not supported yet!"
+// static inline void mcsIRQ(irq_t irq) {
   // if (IRQT_TO_IRQ(irq) == KERNEL_TIMER_IRQ) {
   //     /* if this is a timer irq we must update the time as we need to reprogram the timer, and we
   //      * can't lose the time that has just been used by the kernel. */
@@ -608,7 +612,7 @@ static inline void mcsIRQ(irq_t irq) {
   //     /* otherwise, if the thread is not schedulable, the SC could be valid - charge it if so */
   //     chargeBudget(NODE_STATE(ksConsumed), false, CURRENT_CPU_INDEX(), true);
   // }
-}
+// }
 #else
 #define handleRecv(isBlocking, canReply) handleRecv(isBlocking)
 #define mcsIRQ(irq)

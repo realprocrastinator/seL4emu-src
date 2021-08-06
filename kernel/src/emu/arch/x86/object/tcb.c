@@ -75,7 +75,8 @@ exception_t decodeSetEPTRoot(cap_t cap) {
 #ifdef ENABLE_SMP_SUPPORT
 void Arch_migrateTCB(tcb_t *thread) {
 #ifdef CONFIG_KERNEL_MCS
-  assert(thread->tcbSchedContext != NULL);
+#error "Not supported yet!"
+  // assert(thread->tcbSchedContext != NULL);
 #endif
 
   /* check if thread own its current core FPU */

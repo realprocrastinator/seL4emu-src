@@ -18,8 +18,9 @@
 #include <object/structures.h>
 #include <types.h>
 #ifdef CONFIG_KERNEL_MCS
-#include <object/schedcontext.h>
-#include <object/schedcontrol.h>
+#error "Not supported yet!"
+// #include <object/schedcontext.h>
+// #include <object/schedcontrol.h>
 #endif
 #include <kernel/thread.h>
 #include <kernel/vspace.h>
@@ -46,10 +47,11 @@ word_t getObjectSize(word_t t, word_t userObjSize) {
     case seL4_UntypedObject:
       return userObjSize;
 #ifdef CONFIG_KERNEL_MCS
-    case seL4_SchedContextObject:
-      return userObjSize;
-    case seL4_ReplyObject:
-      return seL4_ReplyBits;
+#error "Not supported yet!"
+    // case seL4_SchedContextObject:
+    //   return userObjSize;
+    // case seL4_ReplyObject:
+    //   return seL4_ReplyBits;
 #endif
     default:
       fail("Invalid object type");
@@ -120,7 +122,8 @@ finaliseCap_ret_t finaliseCap(cap_t cap, bool_t final, bool_t exposed) {
     if (final) {
       notification_t *ntfn = NTFN_PTR(cap_notification_cap_get_capNtfnPtr(cap));
 #ifdef CONFIG_KERNEL_MCS
-      schedContext_unbindNtfn(SC_PTR(notification_ptr_get_ntfnSchedContext(ntfn)));
+#error "Not supported yet!"
+      // schedContext_unbindNtfn(SC_PTR(notification_ptr_get_ntfnSchedContext(ntfn)));
 #endif
       unbindMaybeNotification(ntfn);
       cancelAllSignals(ntfn);
@@ -131,24 +134,25 @@ finaliseCap_ret_t finaliseCap(cap_t cap, bool_t final, bool_t exposed) {
 
   case cap_reply_cap:
 #ifdef CONFIG_KERNEL_MCS
-    if (final) {
-      reply_t *reply = REPLY_PTR(cap_reply_cap_get_capReplyPtr(cap));
-      if (reply && reply->replyTCB) {
-        switch (thread_state_get_tsType(reply->replyTCB->tcbState)) {
-        case ThreadState_BlockedOnReply:
-          reply_remove(reply, reply->replyTCB);
-          break;
-        case ThreadState_BlockedOnReceive:
-          reply_unlink(reply, reply->replyTCB);
-          break;
-        default:
-          fail("Invalid tcb state");
-        }
-      }
-    }
-    fc_ret.remainder = cap_null_cap_new();
-    fc_ret.cleanupInfo = cap_null_cap_new();
-    return fc_ret;
+#error "Not supported yet!"
+    // if (final) {
+    //   reply_t *reply = REPLY_PTR(cap_reply_cap_get_capReplyPtr(cap));
+    //   if (reply && reply->replyTCB) {
+    //     switch (thread_state_get_tsType(reply->replyTCB->tcbState)) {
+    //     case ThreadState_BlockedOnReply:
+    //       reply_remove(reply, reply->replyTCB);
+    //       break;
+    //     case ThreadState_BlockedOnReceive:
+    //       reply_unlink(reply, reply->replyTCB);
+    //       break;
+    //     default:
+    //       fail("Invalid tcb state");
+    //     }
+    //   }
+    // }
+    // fc_ret.remainder = cap_null_cap_new();
+    // fc_ret.cleanupInfo = cap_null_cap_new();
+    // return fc_ret;
 #endif
   case cap_null_cap:
   case cap_domain_cap:
@@ -183,10 +187,11 @@ finaliseCap_ret_t finaliseCap(cap_t cap, bool_t final, bool_t exposed) {
       cte_ptr = TCB_PTR_CTE_PTR(tcb, tcbCTable);
       unbindNotification(tcb);
 #ifdef CONFIG_KERNEL_MCS
-      if (tcb->tcbSchedContext) {
-        schedContext_completeYieldTo(tcb->tcbSchedContext->scYieldFrom);
-        schedContext_unbindTCB(tcb->tcbSchedContext, tcb);
-      }
+#error "Not supported yet!"
+      // if (tcb->tcbSchedContext) {
+      //   schedContext_completeYieldTo(tcb->tcbSchedContext->scYieldFrom);
+      //   schedContext_unbindTCB(tcb->tcbSchedContext, tcb);
+      // }
 #endif
       suspend(tcb);
 #ifdef CONFIG_DEBUG_BUILD
@@ -201,26 +206,27 @@ finaliseCap_ret_t finaliseCap(cap_t cap, bool_t final, bool_t exposed) {
   }
 
 #ifdef CONFIG_KERNEL_MCS
-  case cap_sched_context_cap:
-    if (final) {
-      sched_context_t *sc = SC_PTR(cap_sched_context_cap_get_capSCPtr(cap));
-      schedContext_unbindAllTCBs(sc);
-      schedContext_unbindNtfn(sc);
-      if (sc->scReply) {
-        assert(call_stack_get_isHead(sc->scReply->replyNext));
-        sc->scReply->replyNext = call_stack_new(0, false);
-        sc->scReply = NULL;
-      }
-      if (sc->scYieldFrom) {
-        schedContext_completeYieldTo(sc->scYieldFrom);
-      }
-      /* mark the sc as no longer valid */
-      sc->scRefillMax = 0;
-      fc_ret.remainder = cap_null_cap_new();
-      fc_ret.cleanupInfo = cap_null_cap_new();
-      return fc_ret;
-    }
-    break;
+#error "Not supported yet!"
+  // case cap_sched_context_cap:
+  //   if (final) {
+  //     sched_context_t *sc = SC_PTR(cap_sched_context_cap_get_capSCPtr(cap));
+  //     schedContext_unbindAllTCBs(sc);
+  //     schedContext_unbindNtfn(sc);
+  //     if (sc->scReply) {
+  //       assert(call_stack_get_isHead(sc->scReply->replyNext));
+  //       sc->scReply->replyNext = call_stack_new(0, false);
+  //       sc->scReply = NULL;
+  //     }
+  //     if (sc->scYieldFrom) {
+  //       schedContext_completeYieldTo(sc->scYieldFrom);
+  //     }
+  //     /* mark the sc as no longer valid */
+  //     sc->scRefillMax = 0;
+  //     fc_ret.remainder = cap_null_cap_new();
+  //     fc_ret.cleanupInfo = cap_null_cap_new();
+  //     return fc_ret;
+  //   }
+  //   break;
 #endif
 
   case cap_zombie_cap:
@@ -302,7 +308,8 @@ bool_t CONST sameRegionAs(cap_t cap_a, cap_t cap_b) {
   case cap_reply_cap:
     if (cap_get_capType(cap_b) == cap_reply_cap) {
 #ifdef CONFIG_KERNEL_MCS
-      return cap_reply_cap_get_capReplyPtr(cap_a) == cap_reply_cap_get_capReplyPtr(cap_b);
+#error "Not supported yet!"
+      // return cap_reply_cap_get_capReplyPtr(cap_a) == cap_reply_cap_get_capReplyPtr(cap_b);
 #else
       return cap_reply_cap_get_capTCBPtr(cap_a) == cap_reply_cap_get_capTCBPtr(cap_b);
 #endif
@@ -330,19 +337,20 @@ bool_t CONST sameRegionAs(cap_t cap_a, cap_t cap_b) {
     break;
 
 #ifdef CONFIG_KERNEL_MCS
-  case cap_sched_context_cap:
-    if (cap_get_capType(cap_b) == cap_sched_context_cap) {
-      return (cap_sched_context_cap_get_capSCPtr(cap_a) ==
-              cap_sched_context_cap_get_capSCPtr(cap_b)) &&
-             (cap_sched_context_cap_get_capSCSizeBits(cap_a) ==
-              cap_sched_context_cap_get_capSCSizeBits(cap_b));
-    }
-    break;
-  case cap_sched_control_cap:
-    if (cap_get_capType(cap_b) == cap_sched_control_cap) {
-      return true;
-    }
-    break;
+#error "Not supported yet!"
+  // case cap_sched_context_cap:
+  //   if (cap_get_capType(cap_b) == cap_sched_context_cap) {
+  //     return (cap_sched_context_cap_get_capSCPtr(cap_a) ==
+  //             cap_sched_context_cap_get_capSCPtr(cap_b)) &&
+  //            (cap_sched_context_cap_get_capSCSizeBits(cap_a) ==
+  //             cap_sched_context_cap_get_capSCSizeBits(cap_b));
+  //   }
+  //   break;
+  // case cap_sched_control_cap:
+  //   if (cap_get_capType(cap_b) == cap_sched_control_cap) {
+  //     return true;
+  //   }
+  //   break;
 #endif
   default:
     if (isArchCap(cap_a) && isArchCap(cap_b)) {
@@ -427,8 +435,9 @@ cap_t CONST maskCapRights(seL4_CapRights_t cap_rights, cap_t cap) {
   case cap_zombie_cap:
   case cap_thread_cap:
 #ifdef CONFIG_KERNEL_MCS
-  case cap_sched_context_cap:
-  case cap_sched_control_cap:
+#error "Not supported yet!"
+  // case cap_sched_context_cap:
+  // case cap_sched_control_cap:
 #endif
     return cap;
 
@@ -539,13 +548,14 @@ cap_t createObject(object_t t, void *regionBase, word_t userSize, bool_t deviceM
     return cap_untyped_cap_new(0, !!deviceMemory, userSize, WORD_REF(regionBase));
 
 #ifdef CONFIG_KERNEL_MCS
-  case seL4_SchedContextObject:
-    memzero(regionBase, BIT(userSize));
-    return cap_sched_context_cap_new(SC_REF(regionBase), userSize);
+#error "Not supported yet!"
+  // case seL4_SchedContextObject:
+  //   memzero(regionBase, BIT(userSize));
+  //   return cap_sched_context_cap_new(SC_REF(regionBase), userSize);
 
-  case seL4_ReplyObject:
-    memzero(regionBase, 1UL << seL4_ReplyBits);
-    return cap_reply_cap_new(REPLY_REF(regionBase), true);
+  // case seL4_ReplyObject:
+  //   memzero(regionBase, 1UL << seL4_ReplyBits);
+  //   return cap_reply_cap_new(REPLY_REF(regionBase), true);
 #endif
 
   default:
@@ -584,9 +594,10 @@ void createNewObjects(object_t t, cte_t *parent, cte_t *destCNode, word_t destOf
 }
 
 #ifdef CONFIG_KERNEL_MCS
-exception_t decodeInvocation(word_t invLabel, word_t length, cptr_t capIndex, cte_t *slot,
-                             cap_t cap, bool_t block, bool_t call, bool_t canDonate,
-                             bool_t firstPhase, word_t *buffer)
+#error "Not supported yet!"
+// exception_t decodeInvocation(word_t invLabel, word_t length, cptr_t capIndex, cte_t *slot,
+//                              cap_t cap, bool_t block, bool_t call, bool_t canDonate,
+//                              bool_t firstPhase, word_t *buffer)
 #else
 exception_t decodeInvocation(word_t invLabel, word_t length, cptr_t capIndex, cte_t *slot,
                              cap_t cap, bool_t block, bool_t call, word_t *buffer)
@@ -619,10 +630,11 @@ exception_t decodeInvocation(word_t invLabel, word_t length, cptr_t capIndex, ct
 
     setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
 #ifdef CONFIG_KERNEL_MCS
-    return performInvocation_Endpoint(
-        EP_PTR(cap_endpoint_cap_get_capEPPtr(cap)), cap_endpoint_cap_get_capEPBadge(cap),
-        cap_endpoint_cap_get_capCanGrant(cap), cap_endpoint_cap_get_capCanGrantReply(cap), block,
-        call, canDonate);
+#error "Not supported yet!"
+    // return performInvocation_Endpoint(
+    //     EP_PTR(cap_endpoint_cap_get_capEPPtr(cap)), cap_endpoint_cap_get_capEPBadge(cap),
+    //     cap_endpoint_cap_get_capCanGrant(cap), cap_endpoint_cap_get_capCanGrantReply(cap), block,
+    //     call, canDonate);
 #else
     return performInvocation_Endpoint(EP_PTR(cap_endpoint_cap_get_capEPPtr(cap)),
                                       cap_endpoint_cap_get_capEPBadge(cap),
@@ -644,11 +656,12 @@ exception_t decodeInvocation(word_t invLabel, word_t length, cptr_t capIndex, ct
   }
 
 #ifdef CONFIG_KERNEL_MCS
-  case cap_reply_cap:
-    setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
-    return performInvocation_Reply(NODE_STATE(ksCurThread),
-                                   REPLY_PTR(cap_reply_cap_get_capReplyPtr(cap)),
-                                   cap_reply_cap_get_capReplyCanGrant(cap));
+#error "Not supported yet!"
+  // case cap_reply_cap:
+  //   setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
+  //   return performInvocation_Reply(NODE_STATE(ksCurThread),
+  //                                  REPLY_PTR(cap_reply_cap_get_capReplyPtr(cap)),
+  //                                  cap_reply_cap_get_capReplyCanGrant(cap));
 #else
   case cap_reply_cap:
     if (unlikely(cap_reply_cap_get_capReplyMaster(cap))) {
@@ -666,34 +679,37 @@ exception_t decodeInvocation(word_t invLabel, word_t length, cptr_t capIndex, ct
 
   case cap_thread_cap:
 #ifdef CONFIG_KERNEL_MCS
-    if (unlikely(firstPhase)) {
-      userError("Cannot invoke thread capabilities in the first phase of an invocation");
-      current_syscall_error.type = seL4_InvalidCapability;
-      current_syscall_error.invalidCapNumber = 0;
-      return EXCEPTION_SYSCALL_ERROR;
-    }
+#error "Not supported yet!"
+    // if (unlikely(firstPhase)) {
+    //   userError("Cannot invoke thread capabilities in the first phase of an invocation");
+    //   current_syscall_error.type = seL4_InvalidCapability;
+    //   current_syscall_error.invalidCapNumber = 0;
+    //   return EXCEPTION_SYSCALL_ERROR;
+    // }
 #endif
     return decodeTCBInvocation(invLabel, length, cap, slot, call, buffer);
 
   case cap_domain_cap:
 #ifdef CONFIG_KERNEL_MCS
-    if (unlikely(firstPhase)) {
-      userError("Cannot invoke domain capabilities in the first phase of an invocation");
-      current_syscall_error.type = seL4_InvalidCapability;
-      current_syscall_error.invalidCapNumber = 0;
-      return EXCEPTION_SYSCALL_ERROR;
-    }
+#error "Not supported yet!"
+    // if (unlikely(firstPhase)) {
+    //   userError("Cannot invoke domain capabilities in the first phase of an invocation");
+    //   current_syscall_error.type = seL4_InvalidCapability;
+    //   current_syscall_error.invalidCapNumber = 0;
+    //   return EXCEPTION_SYSCALL_ERROR;
+    // }
 #endif
     return decodeDomainInvocation(invLabel, length, buffer);
 
   case cap_cnode_cap:
 #ifdef CONFIG_KERNEL_MCS
-    if (unlikely(firstPhase)) {
-      userError("Cannot invoke cnode capabilities in the first phase of an invocation");
-      current_syscall_error.type = seL4_InvalidCapability;
-      current_syscall_error.invalidCapNumber = 0;
-      return EXCEPTION_SYSCALL_ERROR;
-    }
+#error "Not supported yet!"
+    // if (unlikely(firstPhase)) {
+    //   userError("Cannot invoke cnode capabilities in the first phase of an invocation");
+    //   current_syscall_error.type = seL4_InvalidCapability;
+    //   current_syscall_error.invalidCapNumber = 0;
+    //   return EXCEPTION_SYSCALL_ERROR;
+    // }
 #endif
     return decodeCNodeInvocation(invLabel, length, cap, buffer);
 
@@ -707,23 +723,24 @@ exception_t decodeInvocation(word_t invLabel, word_t length, cptr_t capIndex, ct
     return decodeIRQHandlerInvocation(invLabel, IDX_TO_IRQT(cap_irq_handler_cap_get_capIRQ(cap)));
 
 #ifdef CONFIG_KERNEL_MCS
-  case cap_sched_control_cap:
-    if (unlikely(firstPhase)) {
-      userError("Cannot invoke sched control capabilities in the first phase of an invocation");
-      current_syscall_error.type = seL4_InvalidCapability;
-      current_syscall_error.invalidCapNumber = 0;
-      return EXCEPTION_SYSCALL_ERROR;
-    }
-    return decodeSchedControlInvocation(invLabel, cap, length, buffer);
+#error "Not supported yet!"
+  // case cap_sched_control_cap:
+  //   if (unlikely(firstPhase)) {
+  //     userError("Cannot invoke sched control capabilities in the first phase of an invocation");
+  //     current_syscall_error.type = seL4_InvalidCapability;
+  //     current_syscall_error.invalidCapNumber = 0;
+  //     return EXCEPTION_SYSCALL_ERROR;
+  //   }
+  //   return decodeSchedControlInvocation(invLabel, cap, length, buffer);
 
-  case cap_sched_context_cap:
-    if (unlikely(firstPhase)) {
-      userError("Cannot invoke sched context capabilities in the first phase of an invocation");
-      current_syscall_error.type = seL4_InvalidCapability;
-      current_syscall_error.invalidCapNumber = 0;
-      return EXCEPTION_SYSCALL_ERROR;
-    }
-    return decodeSchedContextInvocation(invLabel, cap, buffer);
+  // case cap_sched_context_cap:
+  //   if (unlikely(firstPhase)) {
+  //     userError("Cannot invoke sched context capabilities in the first phase of an invocation");
+  //     current_syscall_error.type = seL4_InvalidCapability;
+  //     current_syscall_error.invalidCapNumber = 0;
+  //     return EXCEPTION_SYSCALL_ERROR;
+  //   }
+  //   return decodeSchedContextInvocation(invLabel, cap, buffer);
 #endif
   default:
     fail("Invalid cap type");
@@ -731,13 +748,14 @@ exception_t decodeInvocation(word_t invLabel, word_t length, cptr_t capIndex, ct
 }
 
 #ifdef CONFIG_KERNEL_MCS
-exception_t performInvocation_Endpoint(endpoint_t *ep, word_t badge, bool_t canGrant,
-                                       bool_t canGrantReply, bool_t block, bool_t call,
-                                       bool_t canDonate) {
-  sendIPC(block, call, badge, canGrant, canGrantReply, canDonate, NODE_STATE(ksCurThread), ep);
+#error "Not supported yet!"
+// exception_t performInvocation_Endpoint(endpoint_t *ep, word_t badge, bool_t canGrant,
+//                                        bool_t canGrantReply, bool_t block, bool_t call,
+//                                        bool_t canDonate) {
+//   sendIPC(block, call, badge, canGrant, canGrantReply, canDonate, NODE_STATE(ksCurThread), ep);
 
-  return EXCEPTION_NONE;
-}
+//   return EXCEPTION_NONE;
+// }
 #else
 exception_t performInvocation_Endpoint(endpoint_t *ep, word_t badge, bool_t canGrant,
                                        bool_t canGrantReply, bool_t block, bool_t call) {
@@ -754,10 +772,11 @@ exception_t performInvocation_Notification(notification_t *ntfn, word_t badge) {
 }
 
 #ifdef CONFIG_KERNEL_MCS
-exception_t performInvocation_Reply(tcb_t *thread, reply_t *reply, bool_t canGrant) {
-  doReplyTransfer(thread, reply, canGrant);
-  return EXCEPTION_NONE;
-}
+#error "Not supported yet!"
+// exception_t performInvocation_Reply(tcb_t *thread, reply_t *reply, bool_t canGrant) {
+//   doReplyTransfer(thread, reply, canGrant);
+//   return EXCEPTION_NONE;
+// }
 #else
 exception_t performInvocation_Reply(tcb_t *thread, cte_t *slot, bool_t canGrant) {
   doReplyTransfer(NODE_STATE(ksCurThread), thread, slot, canGrant);
@@ -803,14 +822,16 @@ word_t CONST cap_get_capSizeBits(cap_t cap) {
 
   case cap_reply_cap:
 #ifdef CONFIG_KERNEL_MCS
-    return seL4_ReplyBits;
+#error "Not supported yet!"
+    // return seL4_ReplyBits;
 #else
     return 0;
 #endif
 
   case cap_irq_control_cap:
 #ifdef CONFIG_KERNEL_MCS
-  case cap_sched_control_cap:
+#error "Not supported yet!"
+  // case cap_sched_control_cap:
 #endif
     return 0;
 
@@ -818,8 +839,9 @@ word_t CONST cap_get_capSizeBits(cap_t cap) {
     return 0;
 
 #ifdef CONFIG_KERNEL_MCS
-  case cap_sched_context_cap:
-    return cap_sched_context_cap_get_capSCSizeBits(cap);
+#error "Not supported yet!"
+  // case cap_sched_context_cap:
+  //   return cap_sched_context_cap_get_capSCSizeBits(cap);
 #endif
 
   default:
@@ -850,7 +872,8 @@ bool_t CONST cap_get_capIsPhysical(cap_t cap) {
 
   case cap_thread_cap:
 #ifdef CONFIG_KERNEL_MCS
-  case cap_sched_context_cap:
+#error "Not supported yet!"
+  // case cap_sched_context_cap:
 #endif
     return true;
 
@@ -862,14 +885,16 @@ bool_t CONST cap_get_capIsPhysical(cap_t cap) {
 
   case cap_reply_cap:
 #ifdef CONFIG_KERNEL_MCS
-    return true;
+#error "Not supported yet!"
+    // return true;
 #else
     return false;
 #endif
 
   case cap_irq_control_cap:
 #ifdef CONFIG_KERNEL_MCS
-  case cap_sched_control_cap:
+#error "Not supported yet!"
+  // case cap_sched_control_cap:
 #endif
     return false;
 
@@ -910,14 +935,16 @@ void *CONST cap_get_capPtr(cap_t cap) {
 
   case cap_reply_cap:
 #ifdef CONFIG_KERNEL_MCS
-    return REPLY_PTR(cap_reply_cap_get_capReplyPtr(cap));
+#error "Not supported yet!"
+    // return REPLY_PTR(cap_reply_cap_get_capReplyPtr(cap));
 #else
     return NULL;
 #endif
 
   case cap_irq_control_cap:
 #ifdef CONFIG_KERNEL_MCS
-  case cap_sched_control_cap:
+#error "Not supported yet!"
+  // case cap_sched_control_cap:
 #endif
     return NULL;
 
@@ -925,8 +952,9 @@ void *CONST cap_get_capPtr(cap_t cap) {
     return NULL;
 
 #ifdef CONFIG_KERNEL_MCS
-  case cap_sched_context_cap:
-    return SC_PTR(cap_sched_context_cap_get_capSCPtr(cap));
+#error "Not supported yet!"
+  // case cap_sched_context_cap:
+  //   return SC_PTR(cap_sched_context_cap_get_capSCPtr(cap));
 #endif
 
   default:

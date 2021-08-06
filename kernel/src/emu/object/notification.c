@@ -36,27 +36,29 @@ static inline void ntfn_set_active(notification_t *ntfnPtr, word_t badge) {
 }
 
 #ifdef CONFIG_KERNEL_MCS
-static inline void maybeDonateSchedContext(tcb_t *tcb, notification_t *ntfnPtr) {
-  if (tcb->tcbSchedContext == NULL) {
-    sched_context_t *sc = SC_PTR(notification_ptr_get_ntfnSchedContext(ntfnPtr));
-    if (sc != NULL && sc->scTcb == NULL) {
-      schedContext_donate(sc, tcb);
-      if (sc != NODE_STATE(ksCurSC)) {
-        /* refill_unblock_check should not be called on the
-         * current SC as it is already running. The current SC
-         * may have been bound to a notificaiton object if the
-         * current thread was deleted in a long-running deletion
-         * that became preempted. */
-        refill_unblock_check(sc);
-      }
-      schedContext_resume(sc);
-    }
-  }
-}
+#error "Not supported yet!"
+// static inline void maybeDonateSchedContext(tcb_t *tcb, notification_t *ntfnPtr) {
+//   if (tcb->tcbSchedContext == NULL) {
+//     sched_context_t *sc = SC_PTR(notification_ptr_get_ntfnSchedContext(ntfnPtr));
+//     if (sc != NULL && sc->scTcb == NULL) {
+//       schedContext_donate(sc, tcb);
+//       if (sc != NODE_STATE(ksCurSC)) {
+//         /* refill_unblock_check should not be called on the
+//          * current SC as it is already running. The current SC
+//          * may have been bound to a notificaiton object if the
+//          * current thread was deleted in a long-running deletion
+//          * that became preempted. */
+//         refill_unblock_check(sc);
+//       }
+//       schedContext_resume(sc);
+//     }
+//   }
+// }
 
 #endif
 
 #ifdef CONFIG_KERNEL_MCS
+#error "Not supported yet!"
 #define MCS_DO_IF_SC(tcb, ntfnPtr, _block)                                                         \
   maybeDonateSchedContext(tcb, ntfnPtr);                                                           \
   if (isSchedulable(tcb)) {                                                                        \
@@ -161,7 +163,8 @@ void receiveSignal(tcb_t *thread, cap_t cap, bool_t isBlocking) {
       thread_state_ptr_set_tsType(&thread->tcbState, ThreadState_BlockedOnNotification);
       thread_state_ptr_set_blockingObject(&thread->tcbState, NTFN_REF(ntfnPtr));
 #ifdef CONFIG_KERNEL_MCS
-      maybeReturnSchedContext(ntfnPtr, thread);
+#error "Not supported yet!"
+      // maybeReturnSchedContext(ntfnPtr, thread);
 #endif
       scheduleTCB(thread);
 
@@ -182,7 +185,8 @@ void receiveSignal(tcb_t *thread, cap_t cap, bool_t isBlocking) {
     setRegister(thread, badgeRegister, notification_ptr_get_ntfnMsgIdentifier(ntfnPtr));
     notification_ptr_set_state(ntfnPtr, NtfnState_Idle);
 #ifdef CONFIG_KERNEL_MCS
-    maybeDonateSchedContext(thread, ntfnPtr);
+#error "Not supported yet!"
+    // maybeDonateSchedContext(thread, ntfnPtr);
 #endif
     break;
   }
@@ -200,7 +204,8 @@ void cancelAllSignals(notification_t *ntfnPtr) {
     for (; thread; thread = thread->tcbEPNext) {
       setThreadState(thread, ThreadState_Restart);
 #ifdef CONFIG_KERNEL_MCS
-      possibleSwitchTo(thread);
+#error "Not supported yet!"
+      // possibleSwitchTo(thread);
 #else
       SCHED_ENQUEUE(thread);
 #endif
@@ -237,7 +242,8 @@ void completeSignal(notification_t *ntfnPtr, tcb_t *tcb) {
     setRegister(tcb, badgeRegister, badge);
     notification_ptr_set_state(ntfnPtr, NtfnState_Idle);
 #ifdef CONFIG_KERNEL_MCS
-    maybeDonateSchedContext(tcb, ntfnPtr);
+#error "Not supported yet!"
+    // maybeDonateSchedContext(tcb, ntfnPtr);
 #endif
   } else {
     fail("tried to complete signal with inactive notification object");
@@ -273,10 +279,11 @@ void bindNotification(tcb_t *tcb, notification_t *ntfnPtr) {
 }
 
 #ifdef CONFIG_KERNEL_MCS
-void reorderNTFN(notification_t *ntfnPtr, tcb_t *thread) {
-  tcb_queue_t queue = ntfn_ptr_get_queue(ntfnPtr);
-  queue = tcbEPDequeue(thread, queue);
-  queue = tcbEPAppend(thread, queue);
-  ntfn_ptr_set_queue(ntfnPtr, queue);
-}
+#error "Not supported yet!"
+// void reorderNTFN(notification_t *ntfnPtr, tcb_t *thread) {
+//   tcb_queue_t queue = ntfn_ptr_get_queue(ntfnPtr);
+//   queue = tcbEPDequeue(thread, queue);
+//   queue = tcbEPAppend(thread, queue);
+//   ntfn_ptr_set_queue(ntfnPtr, queue);
+// }
 #endif

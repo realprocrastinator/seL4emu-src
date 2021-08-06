@@ -12,14 +12,15 @@ enum emu_tcb_cnode_index {
   emu_tcbVTable = 1,
 
 #ifdef CONFIG_KERNEL_MCS
-  /* IPC buffer cap slot */
-  emu_tcbBuffer = 2,
+#error "Not supported yet!"
+  // /* IPC buffer cap slot */
+  // emu_tcbBuffer = 2,
 
-  /* Fault endpoint slot */
-  emu_tcbFaultHandler = 3,
+  // /* Fault endpoint slot */
+  // emu_tcbFaultHandler = 3,
 
-  /* Timeout endpoint slot */
-  emu_tcbTimeoutHandler = 4,
+  // /* Timeout endpoint slot */
+  // emu_tcbTimeoutHandler = 4,
 #else
   /* Reply cap slot */
   emu_tcbReply = 2,
