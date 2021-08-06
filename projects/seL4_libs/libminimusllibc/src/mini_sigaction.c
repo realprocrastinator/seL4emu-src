@@ -47,7 +47,7 @@ int __mini_libc_sigaction(int sig, const struct sigaction *restrict sa, struct s
 		}
 		ksa.handler = sa->sa_handler;
 		ksa.flags = sa->sa_flags | SA_RESTORER;
-		ksa.restorer = (sa->sa_flags & SA_SIGINFO) ? __restore_rt : __restore;
+		ksa.restorer = (sa->sa_flags & SA_SIGINFO) ? __mini_restore_rt : __mini_restore;
 		memcpy(&ksa.mask, &sa->sa_mask, _NSIG/8);
 	}
 	int r = __mini_syscall(SYS_rt_sigaction, sig, sa?&ksa:0, old?&ksa_old:0, _NSIG/8);

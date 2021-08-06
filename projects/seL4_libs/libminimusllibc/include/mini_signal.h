@@ -228,28 +228,28 @@ int mini_sigaction(int, const struct sigaction *__restrict, struct sigaction *__
 
 #if defined(_XOPEN_SOURCE) || defined(_BSD_SOURCE) || defined(_GNU_SOURCE)
 // int killpg(pid_t, int);
-// int sigaltstack(const stack_t *__restrict, stack_t *__restrict);
+int mini_sigaltstack(const stack_t *__restrict, stack_t *__restrict);
 // int sighold(int);
 // int sigignore(int);
 // int siginterrupt(int, int);
 // int sigpause(int);
 // int sigrelse(int);
 // void (*sigset(int, void (*)(int)))(int);
-// #define TRAP_BRKPT 1
-// #define TRAP_TRACE 2
-// #define TRAP_BRANCH 3
-// #define TRAP_HWBKPT 4
-// #define TRAP_UNK 5
-// #define POLL_IN 1
-// #define POLL_OUT 2
-// #define POLL_MSG 3
-// #define POLL_ERR 4
-// #define POLL_PRI 5
-// #define POLL_HUP 6
-// #define SS_ONSTACK    1
-// #define SS_DISABLE    2
-// #define SS_AUTODISARM (1U << 31)
-// #define SS_FLAG_BITS SS_AUTODISARM
+#define TRAP_BRKPT 1
+#define TRAP_TRACE 2
+#define TRAP_BRANCH 3
+#define TRAP_HWBKPT 4
+#define TRAP_UNK 5
+#define POLL_IN 1
+#define POLL_OUT 2
+#define POLL_MSG 3
+#define POLL_ERR 4
+#define POLL_PRI 5
+#define POLL_HUP 6
+#define SS_ONSTACK    1
+#define SS_DISABLE    2
+#define SS_AUTODISARM (1U << 31)
+#define SS_FLAG_BITS SS_AUTODISARM
 #endif
 
 #if defined(_BSD_SOURCE) || defined(_GNU_SOURCE)

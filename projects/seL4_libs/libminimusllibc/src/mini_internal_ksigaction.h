@@ -10,4 +10,5 @@ struct k_sigaction {
 	unsigned mask[2];
 };
 
-hidden void __restore(), __restore_rt();
+void __mini_restore_rt();
+#define __mini_restore __mini_restore_rt

@@ -2,6 +2,10 @@
 #include "mini_internal_syscall.h"
 #include "../include/mini_signal.h"
 
+void __mini_block_all_sigs(void *set);
+void __mini_block_app_sigs(void *set);
+void __mini_restore_sigs(void *set);
+
 static const unsigned long all_mask[] = {
 #if ULONG_MAX == 0xffffffff && _NSIG == 129
 	-1UL, -1UL, -1UL, -1UL
