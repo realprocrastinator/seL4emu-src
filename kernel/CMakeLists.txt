@@ -241,6 +241,7 @@ if (seL4UseEmu)
             src/emu/internal/emu_syscalls.c
             src/emu/internal/emu_ipcmsg.c
             src/emu/internal/emu_globalstate.c
+            src/emu/internal/emu_boot.c
             # kernel src
             # boot 
             src/emu/kernel/boot.c
@@ -260,6 +261,8 @@ if (seL4UseEmu)
             src/emu/arch/${KernelArch}/api/faults.c
             src/emu/arch/${KernelArch}/kernel/thread.c
             src/emu/arch/${KernelArch}/kernel/vspace.c
+            src/emu/arch/${KernelArch}/kernel/boot_sys.c
+            src/emu/arch/${KernelArch}/kernel/boot.c
             src/emu/arch/${KernelArch}/c_traps.c
             src/emu/arch/${KernelArch}/idle.c
             src/emu/arch/${KernelArch}/model/statedata.c
@@ -270,6 +273,7 @@ if (seL4UseEmu)
             # x86 arch 64 mode
             src/emu/arch/${KernelArch}/${KernelWordSize}/kernel/vspace.c
             src/emu/arch/${KernelArch}/${KernelWordSize}/kernel/thread.c
+            src/emu/arch/${KernelArch}/${KernelWordSize}/kernel/elf.c
             src/emu/arch/${KernelArch}/${KernelWordSize}/machine/registerset.c
             src/emu/arch/${KernelArch}/${KernelWordSize}/machine/hardware.c
             src/emu/arch/${KernelArch}/${KernelWordSize}/model/statedata.c
@@ -315,6 +319,7 @@ if (NOT seL4UseEmu)
 else()
     # emulation specific headers
     include_directories("include/emu/arch/${KernelArch}/${KernelWordSize}"
+                        "include/emu/arch/${KernelArch}"
     )
 endif()
 

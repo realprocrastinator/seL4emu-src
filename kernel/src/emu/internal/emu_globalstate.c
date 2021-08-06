@@ -6,6 +6,15 @@
 // TODO(Jiawei): move to the build system to auto gen based on the configuration
 // #define CONFIG_MAX_SEL4_CLIENTS 2
 
+/*
+ *  TODO(Jiawei): change those to reasonable numbers
+ *  kernel image info, hard coded here
+ */
+char ki_boot_end[1] = {0xa0};
+char ki_end[1] = {0xb0};
+char ki_skim_start[1] = {0xc0};
+char ki_skim_end[1] = {0xd0};
+
 /* Bookkeeping data structure to track all the running seL4 threads on the current host */
 char seL4emu_g_tcbs[CONFIG_MAX_SEL4_CLIENTS][BIT(seL4_TCBBits)] ALIGN(BIT(TCB_SIZE_BITS));
 

@@ -17,6 +17,7 @@
 #include <machine/registerset.h>
 #include <model/statedata.h>
 #include <object/cap.h>
+#include <object/untyped.h>
 #include <util.h>
 
 /* (node-local) state accessed only during bootstrapping */
@@ -257,37 +258,33 @@ BOOT_CODE cap_t create_root_cnode(void) {
 // compile_assert(num_priorities_valid,
 //                CONFIG_NUM_PRIORITIES >= 1 && CONFIG_NUM_PRIORITIES <= 256)
 
-// BOOT_CODE void
-// create_domain_cap(cap_t root_cnode_cap)
-// {
-//     /* Check domain scheduler assumptions. */
-//     assert(ksDomScheduleLength > 0);
-//     for (word_t i = 0; i < ksDomScheduleLength; i++) {
-//         assert(ksDomSchedule[i].domain < CONFIG_NUM_DOMAINS);
-//         assert(ksDomSchedule[i].length > 0);
-//     }
+BOOT_CODE void create_domain_cap(cap_t root_cnode_cap) {
+  /* Check domain scheduler assumptions. */
+  assert(ksDomScheduleLength > 0);
+  for (word_t i = 0; i < ksDomScheduleLength; i++) {
+    assert(ksDomSchedule[i].domain < CONFIG_NUM_DOMAINS);
+    assert(ksDomSchedule[i].length > 0);
+  }
 
-//     cap_t cap = cap_domain_cap_new();
-//     write_slot(SLOT_PTR(pptr_of_cap(root_cnode_cap), seL4_CapDomain), cap);
-// }
+  cap_t cap = cap_domain_cap_new();
+  write_slot(SLOT_PTR(pptr_of_cap(root_cnode_cap), seL4_CapDomain), cap);
+}
 
-// BOOT_CODE cap_t create_ipcbuf_frame_cap(cap_t root_cnode_cap, cap_t pd_cap, vptr_t vptr)
-// {
-//     clearMemory((void *)rootserver.ipc_buf, PAGE_BITS);
+BOOT_CODE cap_t create_ipcbuf_frame_cap(cap_t root_cnode_cap, cap_t pd_cap, vptr_t vptr) {
+  clearMemory((void *)rootserver.ipc_buf, PAGE_BITS);
 
-//     /* create a cap of it and write it into the root CNode */
-//     cap_t cap = create_mapped_it_frame_cap(pd_cap, rootserver.ipc_buf, vptr, IT_ASID, false,
-//     false); write_slot(SLOT_PTR(pptr_of_cap(root_cnode_cap), seL4_CapInitThreadIPCBuffer), cap);
+  /* create a cap of it and write it into the root CNode */
+  cap_t cap = create_mapped_it_frame_cap(pd_cap, rootserver.ipc_buf, vptr, IT_ASID, false, false);
+  write_slot(SLOT_PTR(pptr_of_cap(root_cnode_cap), seL4_CapInitThreadIPCBuffer), cap);
 
-//     return cap;
-// }
+  return cap;
+}
 
-// BOOT_CODE void create_bi_frame_cap(cap_t root_cnode_cap, cap_t pd_cap, vptr_t vptr)
-// {
-//     /* create a cap of it and write it into the root CNode */
-//     cap_t cap = create_mapped_it_frame_cap(pd_cap, rootserver.boot_info, vptr, IT_ASID, false,
-//     false); write_slot(SLOT_PTR(pptr_of_cap(root_cnode_cap), seL4_CapBootInfoFrame), cap);
-// }
+BOOT_CODE void create_bi_frame_cap(cap_t root_cnode_cap, cap_t pd_cap, vptr_t vptr) {
+  /* create a cap of it and write it into the root CNode */
+  cap_t cap = create_mapped_it_frame_cap(pd_cap, rootserver.boot_info, vptr, IT_ASID, false, false);
+  write_slot(SLOT_PTR(pptr_of_cap(root_cnode_cap), seL4_CapBootInfoFrame), cap);
+}
 
 BOOT_CODE word_t calculate_extra_bi_size_bits(word_t extra_size) {
   if (extra_size == 0) {
@@ -303,25 +300,24 @@ BOOT_CODE word_t calculate_extra_bi_size_bits(word_t extra_size) {
   return msb;
 }
 
-// BOOT_CODE void populate_bi_frame(node_id_t node_id, word_t num_nodes, vptr_t ipcbuf_vptr,
-//                                  word_t extra_bi_size)
-// {
-//     clearMemory((void *) rootserver.boot_info, BI_FRAME_SIZE_BITS);
-//     if (extra_bi_size) {
-//         clearMemory((void *) rootserver.extra_bi, calculate_extra_bi_size_bits(extra_bi_size));
-//     }
+BOOT_CODE void populate_bi_frame(node_id_t node_id, word_t num_nodes, vptr_t ipcbuf_vptr,
+                                 word_t extra_bi_size) {
+  clearMemory((void *)rootserver.boot_info, BI_FRAME_SIZE_BITS);
+  if (extra_bi_size) {
+    clearMemory((void *)rootserver.extra_bi, calculate_extra_bi_size_bits(extra_bi_size));
+  }
 
-//     /* initialise bootinfo-related global state */
-//     ndks_boot.bi_frame = BI_PTR(rootserver.boot_info);
-//     ndks_boot.slot_pos_cur = seL4_NumInitialCaps;
-//     BI_PTR(rootserver.boot_info)->nodeID = node_id;
-//     BI_PTR(rootserver.boot_info)->numNodes = num_nodes;
-//     BI_PTR(rootserver.boot_info)->numIOPTLevels = 0;
-//     BI_PTR(rootserver.boot_info)->ipcBuffer = (seL4_IPCBuffer *) ipcbuf_vptr;
-//     BI_PTR(rootserver.boot_info)->initThreadCNodeSizeBits = CONFIG_ROOT_CNODE_SIZE_BITS;
-//     BI_PTR(rootserver.boot_info)->initThreadDomain = ksDomSchedule[ksDomScheduleIdx].domain;
-//     BI_PTR(rootserver.boot_info)->extraLen = extra_bi_size;
-// }
+  /* initialise bootinfo-related global state */
+  ndks_boot.bi_frame = BI_PTR(rootserver.boot_info);
+  ndks_boot.slot_pos_cur = seL4_NumInitialCaps;
+  BI_PTR(rootserver.boot_info)->nodeID = node_id;
+  BI_PTR(rootserver.boot_info)->numNodes = num_nodes;
+  BI_PTR(rootserver.boot_info)->numIOPTLevels = 0;
+  BI_PTR(rootserver.boot_info)->ipcBuffer = (seL4_IPCBuffer *)ipcbuf_vptr;
+  BI_PTR(rootserver.boot_info)->initThreadCNodeSizeBits = CONFIG_ROOT_CNODE_SIZE_BITS;
+  BI_PTR(rootserver.boot_info)->initThreadDomain = ksDomSchedule[ksDomScheduleIdx].domain;
+  BI_PTR(rootserver.boot_info)->extraLen = extra_bi_size;
+}
 
 BOOT_CODE bool_t provide_cap(cap_t root_cnode_cap, cap_t cap) {
   if (ndks_boot.slot_pos_cur >= ndks_boot.slot_pos_max) {
@@ -333,54 +329,42 @@ BOOT_CODE bool_t provide_cap(cap_t root_cnode_cap, cap_t cap) {
   return true;
 }
 
-// BOOT_CODE create_frames_of_region_ret_t create_frames_of_region(
-//     cap_t    root_cnode_cap,
-//     cap_t    pd_cap,
-//     region_t reg,
-//     bool_t   do_map,
-//     sword_t  pv_offset
-// )
-// {
-//     pptr_t     f;
-//     cap_t      frame_cap;
-//     seL4_SlotPos slot_pos_before;
-//     seL4_SlotPos slot_pos_after;
+BOOT_CODE create_frames_of_region_ret_t create_frames_of_region(cap_t root_cnode_cap, cap_t pd_cap,
+                                                                region_t reg, bool_t do_map,
+                                                                sword_t pv_offset) {
+  pptr_t f;
+  cap_t frame_cap;
+  seL4_SlotPos slot_pos_before;
+  seL4_SlotPos slot_pos_after;
 
-//     slot_pos_before = ndks_boot.slot_pos_cur;
+  slot_pos_before = ndks_boot.slot_pos_cur;
 
-//     for (f = reg.start; f < reg.end; f += BIT(PAGE_BITS)) {
-//         if (do_map) {
-//             frame_cap = create_mapped_it_frame_cap(pd_cap, f, pptr_to_paddr((void *)(f -
-//             pv_offset)), IT_ASID, false, true);
-//         } else {
-//             frame_cap = create_unmapped_it_frame_cap(f, false);
-//         }
-//         if (!provide_cap(root_cnode_cap, frame_cap))
-//             return (create_frames_of_region_ret_t) {
-//             S_REG_EMPTY, false
-//         };
-//     }
+  for (f = reg.start; f < reg.end; f += BIT(PAGE_BITS)) {
+    if (do_map) {
+      frame_cap = create_mapped_it_frame_cap(pd_cap, f, pptr_to_paddr((void *)(f - pv_offset)),
+                                             IT_ASID, false, true);
+    } else {
+      frame_cap = create_unmapped_it_frame_cap(f, false);
+    }
+    if (!provide_cap(root_cnode_cap, frame_cap))
+      return (create_frames_of_region_ret_t){S_REG_EMPTY, false};
+  }
 
-//     slot_pos_after = ndks_boot.slot_pos_cur;
+  slot_pos_after = ndks_boot.slot_pos_cur;
 
-//     return (create_frames_of_region_ret_t) {
-//         (seL4_SlotRegion) { slot_pos_before, slot_pos_after }, true
-//     };
-// }
+  return (create_frames_of_region_ret_t){(seL4_SlotRegion){slot_pos_before, slot_pos_after}, true};
+}
 
-// BOOT_CODE cap_t create_it_asid_pool(cap_t root_cnode_cap)
-// {
-//     cap_t ap_cap = cap_asid_pool_cap_new(IT_ASID >> asidLowBits, rootserver.asid_pool);
-//     write_slot(SLOT_PTR(pptr_of_cap(root_cnode_cap), seL4_CapInitThreadASIDPool), ap_cap);
+BOOT_CODE cap_t create_it_asid_pool(cap_t root_cnode_cap) {
+  cap_t ap_cap = cap_asid_pool_cap_new(IT_ASID >> asidLowBits, rootserver.asid_pool);
+  write_slot(SLOT_PTR(pptr_of_cap(root_cnode_cap), seL4_CapInitThreadASIDPool), ap_cap);
 
-//     /* create ASID control cap */
-//     write_slot(
-//         SLOT_PTR(pptr_of_cap(root_cnode_cap), seL4_CapASIDControl),
-//         cap_asid_control_cap_new()
-//     );
+  /* create ASID control cap */
+  write_slot(SLOT_PTR(pptr_of_cap(root_cnode_cap), seL4_CapASIDControl),
+             cap_asid_control_cap_new());
 
-//     return ap_cap;
-// }
+  return ap_cap;
+}
 
 // #ifdef CONFIG_KERNEL_MCS
 // BOOT_CODE static bool_t configure_sched_context(tcb_t *tcb, sched_context_t *sc_pptr, ticks_t
@@ -521,152 +505,134 @@ BOOT_CODE tcb_t *create_initial_thread(cap_t root_cnode_cap, cap_t it_pd_cap, vp
   return tcb;
 }
 
-// BOOT_CODE void init_core_state(tcb_t *scheduler_action)
-// {
-// #ifdef CONFIG_HAVE_FPU
-//     NODE_STATE(ksActiveFPUState) = NULL;
-// #endif
-// #ifdef CONFIG_DEBUG_BUILD
-//     /* add initial threads to the debug queue */
-//     NODE_STATE(ksDebugTCBs) = NULL;
-//     if (scheduler_action != SchedulerAction_ResumeCurrentThread &&
-//         scheduler_action != SchedulerAction_ChooseNewThread) {
-//         tcbDebugAppend(scheduler_action);
-//     }
-//     tcbDebugAppend(NODE_STATE(ksIdleThread));
-// #endif
-//     NODE_STATE(ksSchedulerAction) = scheduler_action;
-//     NODE_STATE(ksCurThread) = NODE_STATE(ksIdleThread);
-// #ifdef CONFIG_KERNEL_MCS
-//     NODE_STATE(ksCurSC) = NODE_STATE(ksCurThread->tcbSchedContext);
-//     NODE_STATE(ksConsumed) = 0;
-//     NODE_STATE(ksReprogram) = true;
-//     NODE_STATE(ksReleaseHead) = NULL;
-//     NODE_STATE(ksCurTime) = getCurrentTime();
-// #endif
-// }
+BOOT_CODE void init_core_state(tcb_t *scheduler_action) {
+  // #ifdef CONFIG_HAVE_FPU
+  //     NODE_STATE(ksActiveFPUState) = NULL;
+  // #endif
+  // #ifdef CONFIG_DEBUG_BUILD
+  //     /* add initial threads to the debug queue */
+  //     NODE_STATE(ksDebugTCBs) = NULL;
+  //     if (scheduler_action != SchedulerAction_ResumeCurrentThread &&
+  //         scheduler_action != SchedulerAction_ChooseNewThread) {
+  //         tcbDebugAppend(scheduler_action);
+  //     }
+  //     tcbDebugAppend(NODE_STATE(ksIdleThread));
+  // #endif
+  //     NODE_STATE(ksSchedulerAction) = scheduler_action;
+  //     NODE_STATE(ksCurThread) = NODE_STATE(ksIdleThread);
+  // #ifdef CONFIG_KERNEL_MCS
+  //     NODE_STATE(ksCurSC) = NODE_STATE(ksCurThread->tcbSchedContext);
+  //     NODE_STATE(ksConsumed) = 0;
+  //     NODE_STATE(ksReprogram) = true;
+  //     NODE_STATE(ksReleaseHead) = NULL;
+  //     NODE_STATE(ksCurTime) = getCurrentTime();
+  // #endif
 
-// BOOT_CODE static bool_t provide_untyped_cap(
-//     cap_t      root_cnode_cap,
-//     bool_t     device_memory,
-//     pptr_t     pptr,
-//     word_t     size_bits,
-//     seL4_SlotPos first_untyped_slot
-// )
-// {
-//     bool_t ret;
-//     cap_t ut_cap;
-//     word_t i = ndks_boot.slot_pos_cur - first_untyped_slot;
-//     if (i < CONFIG_MAX_NUM_BOOTINFO_UNTYPED_CAPS) {
-//         ndks_boot.bi_frame->untypedList[i] = (seL4_UntypedDesc) {
-//             pptr_to_paddr((void *)pptr), size_bits, device_memory, {0}
-//         };
-//         ut_cap = cap_untyped_cap_new(MAX_FREE_INDEX(size_bits),
-//                                      device_memory, size_bits, pptr);
-//         ret = provide_cap(root_cnode_cap, ut_cap);
-//     } else {
-//         printf("Kernel init: Too many untyped regions for boot info\n");
-//         ret = true;
-//     }
-//     return ret;
-// }
+  /* at the moment we set this manually */
+  NODE_STATE(ksCurThread) = NODE_STATE(ksIdleThread);
+}
 
-// BOOT_CODE bool_t create_untypeds_for_region(
-//     cap_t      root_cnode_cap,
-//     bool_t     device_memory,
-//     region_t   reg,
-//     seL4_SlotPos first_untyped_slot
-// )
-// {
-//     word_t align_bits;
-//     word_t size_bits;
+BOOT_CODE static bool_t provide_untyped_cap(cap_t root_cnode_cap, bool_t device_memory, pptr_t pptr,
+                                            word_t size_bits, seL4_SlotPos first_untyped_slot) {
+  bool_t ret;
+  cap_t ut_cap;
+  word_t i = ndks_boot.slot_pos_cur - first_untyped_slot;
+  if (i < CONFIG_MAX_NUM_BOOTINFO_UNTYPED_CAPS) {
+    ndks_boot.bi_frame->untypedList[i] =
+        (seL4_UntypedDesc){pptr_to_paddr((void *)pptr), size_bits, device_memory, {0}};
+    ut_cap = cap_untyped_cap_new(MAX_FREE_INDEX(size_bits), device_memory, size_bits, pptr);
+    ret = provide_cap(root_cnode_cap, ut_cap);
+  } else {
+    printf("Kernel init: Too many untyped regions for boot info\n");
+    ret = true;
+  }
+  return ret;
+}
 
-//     while (!is_reg_empty(reg)) {
-//         /* Determine the maximum size of the region */
-//         size_bits = seL4_WordBits - 1 - clzl(reg.end - reg.start);
+BOOT_CODE bool_t create_untypeds_for_region(cap_t root_cnode_cap, bool_t device_memory,
+                                            region_t reg, seL4_SlotPos first_untyped_slot) {
+  word_t align_bits;
+  word_t size_bits;
 
-//         /* Determine the alignment of the region */
-//         if (reg.start != 0) {
-//             align_bits = ctzl(reg.start);
-//         } else {
-//             align_bits = size_bits;
-//         }
-//         /* Reduce size bits to align if needed */
-//         if (align_bits < size_bits) {
-//             size_bits = align_bits;
-//         }
-//         if (size_bits > seL4_MaxUntypedBits) {
-//             size_bits = seL4_MaxUntypedBits;
-//         }
+  while (!is_reg_empty(reg)) {
+    /* Determine the maximum size of the region */
+    size_bits = seL4_WordBits - 1 - clzl(reg.end - reg.start);
 
-//         if (size_bits >= seL4_MinUntypedBits) {
-//             if (!provide_untyped_cap(root_cnode_cap, device_memory, reg.start, size_bits,
-//             first_untyped_slot)) {
-//                 return false;
-//             }
-//         }
-//         reg.start += BIT(size_bits);
-//     }
-//     return true;
-// }
+    /* Determine the alignment of the region */
+    if (reg.start != 0) {
+      align_bits = ctzl(reg.start);
+    } else {
+      align_bits = size_bits;
+    }
+    /* Reduce size bits to align if needed */
+    if (align_bits < size_bits) {
+      size_bits = align_bits;
+    }
+    if (size_bits > seL4_MaxUntypedBits) {
+      size_bits = seL4_MaxUntypedBits;
+    }
 
-// BOOT_CODE bool_t create_device_untypeds(cap_t root_cnode_cap, seL4_SlotPos slot_pos_before)
-// {
-//     paddr_t start = 0;
-//     for (word_t i = 0; i < ndks_boot.resv_count; i++) {
-//         if (start < ndks_boot.reserved[i].start) {
-//             region_t reg = paddr_to_pptr_reg((p_region_t) {
-//                 start, ndks_boot.reserved[i].start
-//             });
-//             if (!create_untypeds_for_region(root_cnode_cap, true, reg, slot_pos_before)) {
-//                 return false;
-//             }
-//         }
+    if (size_bits >= seL4_MinUntypedBits) {
+      if (!provide_untyped_cap(root_cnode_cap, device_memory, reg.start, size_bits,
+                               first_untyped_slot)) {
+        return false;
+      }
+    }
+    reg.start += BIT(size_bits);
+  }
+  return true;
+}
 
-//         start = ndks_boot.reserved[i].end;
-//     }
+BOOT_CODE bool_t create_device_untypeds(cap_t root_cnode_cap, seL4_SlotPos slot_pos_before) {
+  paddr_t start = 0;
+  for (word_t i = 0; i < ndks_boot.resv_count; i++) {
+    if (start < ndks_boot.reserved[i].start) {
+      region_t reg = paddr_to_pptr_reg((p_region_t){start, ndks_boot.reserved[i].start});
+      if (!create_untypeds_for_region(root_cnode_cap, true, reg, slot_pos_before)) {
+        return false;
+      }
+    }
 
-//     if (start < CONFIG_PADDR_USER_DEVICE_TOP) {
-//         region_t reg = paddr_to_pptr_reg((p_region_t) {
-//             start, CONFIG_PADDR_USER_DEVICE_TOP
-//         });
-//         /*
-//          * The auto-generated bitfield code will get upset if the
-//          * end pptr is larger than the maximum pointer size for this architecture.
-//          */
-//         if (reg.end > PPTR_TOP) {
-//             reg.end = PPTR_TOP;
-//         }
-//         if (!create_untypeds_for_region(root_cnode_cap, true, reg, slot_pos_before)) {
-//             return false;
-//         }
-//     }
-//     return true;
-// }
+    start = ndks_boot.reserved[i].end;
+  }
 
-// BOOT_CODE bool_t create_kernel_untypeds(cap_t root_cnode_cap, region_t boot_mem_reuse_reg,
-//                                         seL4_SlotPos first_untyped_slot)
-// {
-//     word_t     i;
-//     region_t   reg;
+  if (start < CONFIG_PADDR_USER_DEVICE_TOP) {
+    region_t reg = paddr_to_pptr_reg((p_region_t){start, CONFIG_PADDR_USER_DEVICE_TOP});
+    /*
+     * The auto-generated bitfield code will get upset if the
+     * end pptr is larger than the maximum pointer size for this architecture.
+     */
+    if (reg.end > PPTR_TOP) {
+      reg.end = PPTR_TOP;
+    }
+    if (!create_untypeds_for_region(root_cnode_cap, true, reg, slot_pos_before)) {
+      return false;
+    }
+  }
+  return true;
+}
 
-//     /* if boot_mem_reuse_reg is not empty, we can create UT objs from boot code/data frames */
-//     if (!create_untypeds_for_region(root_cnode_cap, false, boot_mem_reuse_reg,
-//     first_untyped_slot)) {
-//         return false;
-//     }
+BOOT_CODE bool_t create_kernel_untypeds(cap_t root_cnode_cap, region_t boot_mem_reuse_reg,
+                                        seL4_SlotPos first_untyped_slot) {
+  word_t i;
+  region_t reg;
 
-//     /* convert remaining freemem into UT objects and provide the caps */
-//     for (i = 0; i < MAX_NUM_FREEMEM_REG; i++) {
-//         reg = ndks_boot.freemem[i];
-//         ndks_boot.freemem[i] = REG_EMPTY;
-//         if (!create_untypeds_for_region(root_cnode_cap, false, reg, first_untyped_slot)) {
-//             return false;
-//         }
-//     }
+  /* if boot_mem_reuse_reg is not empty, we can create UT objs from boot code/data frames */
+  if (!create_untypeds_for_region(root_cnode_cap, false, boot_mem_reuse_reg, first_untyped_slot)) {
+    return false;
+  }
 
-//     return true;
-// }
+  /* convert remaining freemem into UT objects and provide the caps */
+  for (i = 0; i < MAX_NUM_FREEMEM_REG; i++) {
+    reg = ndks_boot.freemem[i];
+    ndks_boot.freemem[i] = REG_EMPTY;
+    if (!create_untypeds_for_region(root_cnode_cap, false, reg, first_untyped_slot)) {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 BOOT_CODE void bi_finalise(void) {
   seL4_SlotPos slot_pos_start = ndks_boot.slot_pos_cur;

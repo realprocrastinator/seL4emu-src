@@ -7,7 +7,11 @@
 #pragma once
 
 #include <config.h>
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <emu/emu_types.h>
+#else
 #include <types.h>
+#endif
 #include <plat/machine/acpi.h>
 #include <kernel/boot.h>
 #include <sel4/arch/bootinfo_types.h>

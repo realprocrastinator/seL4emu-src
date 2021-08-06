@@ -1,0 +1,1 @@
+void seL4emu_boot(void);

@@ -8,6 +8,9 @@
 
 #include <config.h>
 #include <plat_mode/machine/hardware.h>
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <plat/machine/devices.h>
+#endif
 
 #ifdef CONFIG_XAPIC
 typedef enum _apic_reg_t {
