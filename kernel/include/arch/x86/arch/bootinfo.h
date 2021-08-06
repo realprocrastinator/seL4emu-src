@@ -6,6 +6,10 @@
 
 #pragma once
 
+#ifdef CONIFG_SEL4_USE_EMULATION
+#include <plat/machine/device.h>
+#endif
+
 #define MAX_NUM_FREEMEM_REG 16
 
 /*

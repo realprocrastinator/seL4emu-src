@@ -15,3 +15,15 @@ word_t Arch_setMRs_fault(tcb_t *sender, tcb_t *receiver, word_t *receiveIPCBuffe
 bool_t handleFaultReply(tcb_t *receiver, tcb_t *sender);
 bool_t Arch_handleFaultReply(tcb_t *receiver, tcb_t *sender, word_t faultType);
 
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <machine/registerset.h>
+
+unsigned int setMRs_lookup_failure(tcb_t *receiver, word_t *receiveIPCBuffer,
+                                   lookup_fault_t luf, unsigned int offset);
+
+void copyMRsFaultReply(tcb_t *sender, tcb_t *receiver, 
+                       MessageID_t id, word_t length);
+
+void copyMRsFault(tcb_t *sender, tcb_t *receiver, MessageID_t id,
+                  word_t length, word_t *receiveIPCBuffer);
+#endif

@@ -10,6 +10,9 @@
 #include <arch/types.h>
 #include <arch/machine/registerset.h>
 #include <arch/object/structures.h>
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <object/structures.h>
+#endif
 
 typedef enum {
     MessageID_Syscall,

@@ -242,26 +242,53 @@ if (seL4UseEmu)
             src/emu/internal/emu_ipcmsg.c
             src/emu/internal/emu_globalstate.c
             # kernel src
+            # boot 
+            src/emu/kernel/boot.c
+            # apis
             src/emu/api/syscalls.c
+            src/emu/api/faults.c
+            # utils
             src/emu/assert.c
             src/emu/util.c
             src/emu/inline.c
+            # other
             src/emu/model/statedata.c
+            src/emu/model/preemption.c
+            src/emu/config/default_domain.c
+            src/emu/machine/registerset.c
+            # x86 arch
+            src/emu/arch/${KernelArch}/api/faults.c
+            src/emu/arch/${KernelArch}/kernel/thread.c
+            src/emu/arch/${KernelArch}/kernel/vspace.c
             src/emu/arch/${KernelArch}/c_traps.c
             src/emu/arch/${KernelArch}/idle.c
-            # src/emu/arch/${KernelArch}/${KernelWordSize}/c_traps.c
             src/emu/arch/${KernelArch}/model/statedata.c
+            src/emu/arch/${KernelArch}/machine/registerset.c
+            src/emu/arch/${KernelArch}/object/objecttype.c
+            src/emu/arch/${KernelArch}/object/interrupt.c
+            src/emu/arch/${KernelArch}/object/tcb.c
+            # x86 arch 64 mode
+            src/emu/arch/${KernelArch}/${KernelWordSize}/kernel/vspace.c
+            src/emu/arch/${KernelArch}/${KernelWordSize}/kernel/thread.c
             src/emu/arch/${KernelArch}/${KernelWordSize}/machine/registerset.c
             src/emu/arch/${KernelArch}/${KernelWordSize}/machine/hardware.c
+            src/emu/arch/${KernelArch}/${KernelWordSize}/model/statedata.c
+            src/emu/arch/${KernelArch}/${KernelWordSize}/object/objecttype.c
+            # src/emu/arch/${KernelArch}/${KernelWordSize}/c_traps.c
             # kernel functionalities
             src/emu/kernel/cspace.c
             src/emu/kernel/faulthandler.c
             src/emu/kernel/thread.c
-            src/emu/arch/${KernelArch}/${KernelWordSize}/kernel/vspace.c
-            src/emu/arch/${KernelArch}/${KernelWordSize}/kernel/thread.c
             # kernel objects 
             src/emu/object/tcb.c
-            
+            src/emu/object/objecttype.c
+            src/emu/object/cnode.c
+            src/emu/object/endpoint.c
+            src/emu/object/interrupt.c
+            src/emu/object/notification.c
+            src/emu/object/untyped.c
+            # platform specific
+            src/emu/plat/pc99/machine/ioapic.c
     )
 else()
     # Sort the C sources to ensure a stable layout of the final C file
@@ -287,7 +314,8 @@ if (NOT seL4UseEmu)
     include_directories("include/std")
 else()
     # emulation specific headers
-    include_directories("include/emu/arch/${KernelArch}/${KernelWordSize}")
+    include_directories("include/emu/arch/${KernelArch}/${KernelWordSize}"
+    )
 endif()
 
 if(KernelArchARM)

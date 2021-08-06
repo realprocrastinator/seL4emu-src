@@ -9,6 +9,7 @@
 #include <config.h>
 #ifdef CONFIG_SEL4_USE_EMULATION
 #include <emu/emu_types.h>
+#include <emu/emu_assert.h>
 #else
 #include <types.h>
 #endif
@@ -82,9 +83,11 @@ static inline irq_t getActiveIRQ(void)
 /* Checks for pending IRQ */
 static inline bool_t isIRQPending(void)
 {
-    if (apic_is_interrupt_pending()) {
-        return true;
-    }
+    //TODO(Jiawei): not supported at the moment
+    // if (apic_is_interrupt_pending()) {
+    //     return true;
+    // }
+    assert(!"Not implemented yet");
 
     if (config_set(CONFIG_IRQ_PIC) && pic_is_irq_pending()) {
         return true;
@@ -95,6 +98,7 @@ static inline bool_t isIRQPending(void)
 
 static inline void ackInterrupt(irq_t irq)
 {
+    assert(!"Not implemented yet");
     if (config_set(CONFIG_IRQ_PIC) && irq <= irq_isa_max) {
         pic_ack_active_irq();
     } else {

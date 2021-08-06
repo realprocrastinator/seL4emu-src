@@ -17,6 +17,23 @@
 #include <arch/machine/registerset.h>
 #include <sel4/arch/constants.h>
 
+/* 
+ * At the moment I haven't seen a good way to solve the circular dependencies
+ * between object/structures.h and arch specific object/structures.h. As the former one defines the enumerate structure that the arch specific one needs, while the latter one defines the atch_tcb_t that the former one wants. So we need to satisfy both.
+ * TODO(Jiawei): Is there a good way to solve that problem?
+ * */
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <emu/object/structures.h>
+enum tcb_arch_cnode_index {
+#ifdef CONFIG_VTX
+    /* VSpace root for running any associated VCPU in */
+    tcbArchEPTRoot = emu_tcbCNodeEntries,
+    tcbArchCNodeEntries
+#else
+    tcbArchCNodeEntries = emu_tcbCNodeEntries
+#endif
+};
+#else
 enum tcb_arch_cnode_index {
 #ifdef CONFIG_VTX
     /* VSpace root for running any associated VCPU in */
@@ -26,6 +43,7 @@ enum tcb_arch_cnode_index {
     tcbArchCNodeEntries = tcbCNodeEntries
 #endif
 };
+#endif
 
 typedef struct arch_tcb {
     user_context_t tcbContext;

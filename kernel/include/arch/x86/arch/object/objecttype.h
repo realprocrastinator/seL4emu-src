@@ -11,6 +11,9 @@
 #include <api/types.h>
 #include <object/structures.h>
 #include <object/cnode.h>
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <object/cap.h>
+#endif
 
 deriveCap_ret_t Arch_deriveCap(cte_t *slot, cap_t cap);
 cap_t CONST Arch_updateCapData(bool_t preserve, word_t data, cap_t cap);

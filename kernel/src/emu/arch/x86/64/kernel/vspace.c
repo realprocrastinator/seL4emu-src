@@ -1,1401 +1,1514 @@
 /*
- * Copyright 2014, General Dynamics C4 Systems
+ * Copyright 2020, Data61, CSIRO (ABN 41 687 119 230)
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
 
-#include <config.h>
-#include <arch/kernel/vspace.h>
 #include <api/syscall.h>
-#include <machine/io.h>
-#include <kernel/boot.h>
-#include <model/statedata.h>
 #include <arch/api/invocation.h>
+#include <arch/kernel/boot.h>
+#include <arch/kernel/boot_sys.h>
 #include <arch/kernel/tlb_bitmap.h>
+#include <arch/kernel/vspace.h>
+#include <config.h>
+#include <kernel/boot.h>
+#include <machine/io.h>
 #include <mode/kernel/tlb.h>
-#include <mode/kernel/vspace.h>
+#include <model/statedata.h>
+#include <object/structures.h>
 
-// static exception_t performPageGetAddress(void *vbase_ptr)
+/* When using the SKIM window to isolate the kernel from the user we also need to
+ * not use global mappings as having global mappings and entries in the TLB is
+ * equivalent, for the purpose of exploitation, to having the mappings in the
+ * kernel window */
+#define KERNEL_IS_GLOBAL() (config_set(CONFIG_KERNEL_SKIM_WINDOW) ? 0 : 1)
+
+/* For the boot code we create two windows into the physical address space
+ * One is at the same location as the kernel window, and is placed up high
+ * The other is a 1-to-1 mapping of the first 512gb of memory. The purpose
+ * of this is to have a 1-to-1 mapping for the low parts of memory, so that
+ * when we switch paging on, and are still running at physical addresses,
+ * we don't explode. Then we also want the high mappings so we can start
+ * running at proper kernel virtual addresses */
+pml4e_t boot_pml4[BIT(PML4_INDEX_BITS)] ALIGN(BIT(seL4_PageBits)) VISIBLE PHYS_BSS;
+pdpte_t boot_pdpt[BIT(PDPT_INDEX_BITS)] ALIGN(BIT(seL4_PageBits)) VISIBLE PHYS_BSS;
+
+/* 'gdt_idt_ptr' is declared globally because of a C-subset restriction.
+ * It is only used in init_drts(), which therefore is non-reentrant.
+ */
+gdt_idt_ptr_t gdt_idt_ptr;
+
+// BOOT_CODE bool_t map_kernel_window(
+//     uint32_t num_ioapic,
+//     paddr_t   *ioapic_paddrs,
+//     uint32_t   num_drhu,
+//     paddr_t   *drhu_list
+// )
 // {
-//     paddr_t capFBasePtr;
 
-//     /* Get the physical address of this frame. */
-//     capFBasePtr = pptr_to_paddr(vbase_ptr);
+//     uint64_t paddr;
+//     uint64_t vaddr;
 
-//     /* return it in the first message register */
-//     setRegister(NODE_STATE(ksCurThread), msgRegisters[0], capFBasePtr);
-//     setRegister(NODE_STATE(ksCurThread), msgInfoRegister,
-//                 wordFromMessageInfo(seL4_MessageInfo_new(0, 0, 0, 1)));
+// #ifdef CONFIG_HUGE_PAGE
+//     /* using 1 GiB page size */
 
-//     return EXCEPTION_NONE;
-// }
+//     /* verify that the kernel window as at the last entry of the PML4 */
+//     assert(GET_PML4_INDEX(PPTR_BASE) == BIT(PML4_INDEX_BITS) - 1);
+//     /* verify that the kernel_base is located in the last entry of the PML4,
+//      * the second last entry of the PDPT, is 1gb aligned and 1gb in size */
+//     assert(GET_PML4_INDEX(KERNEL_ELF_BASE) == BIT(PML4_INDEX_BITS) - 1);
+//     assert(GET_PDPT_INDEX(KERNEL_ELF_BASE) == BIT(PML4_INDEX_BITS) - 2);
+//     assert(GET_PDPT_INDEX(KDEV_BASE) == BIT(PML4_INDEX_BITS) - 1);
+//     assert(IS_ALIGNED(KERNEL_ELF_BASE - KERNEL_ELF_PADDR_BASE, seL4_HugePageBits));
+//     assert(IS_ALIGNED(KDEV_BASE, seL4_HugePageBits));
+//     /* place the PDPT into the PML4 */
+//     x64KSKernelPML4[GET_PML4_INDEX(PPTR_BASE)] = pml4e_new(
+//                                                      0, /* xd */
+//                                                      kpptr_to_paddr(x64KSKernelPDPT),
+//                                                      0, /* accessed */
+//                                                      0, /* cache_disabled */
+//                                                      0, /* write_through */
+//                                                      0, /* super_user */
+//                                                      1, /* read_write */
+//                                                      1  /* present */
+//                                                  );
+//     /* put the 1GB kernel_base mapping into the PDPT */
+//     x64KSKernelPDPT[GET_PDPT_INDEX(KERNEL_ELF_BASE)] = pdpte_pdpte_1g_new(
+//                                                            0, /* xd */
+//                                                            PADDR_BASE,
+//                                                            0, /* PAT */
+//                                                            KERNEL_IS_GLOBAL(), /* global */
+//                                                            0, /* dirty */
+//                                                            0, /* accessed */
+//                                                            0, /* cache_disabled */
+//                                                            0, /* write_through */
+//                                                            0, /* super_user */
+//                                                            1, /* read_write */
+//                                                            1  /* present */
+//                                                        );
+//     /* also map the physical memory into the big kernel window */
+//     paddr = 0;
+//     vaddr = PPTR_BASE;
+//     for (paddr = 0; paddr < PADDR_TOP;
+//          paddr += BIT(seL4_HugePageBits)) {
 
+//         int pdpte_index = GET_PDPT_INDEX(vaddr);
+//         x64KSKernelPDPT[pdpte_index] = pdpte_pdpte_1g_new(
+//                                            0,          /* xd               */
+//                                            paddr,      /* physical address */
+//                                            0,          /* PAT              */
+//                                            KERNEL_IS_GLOBAL(), /* global   */
+//                                            0,          /* dirty            */
+//                                            0,          /* accessed         */
+//                                            0,          /* cache_disabled   */
+//                                            0,          /* write_through    */
+//                                            0,          /* super_user       */
+//                                            1,          /* read_write       */
+//                                            1           /* present          */
+//                                        );
 
-// void deleteASIDPool(asid_t asid_base, asid_pool_t *pool)
-// {
-//     /* Haskell error: "ASID pool's base must be aligned" */
-//     assert(IS_ALIGNED(asid_base, asidLowBits));
-
-//     if (x86KSASIDTable[asid_base >> asidLowBits] == pool) {
-//         for (unsigned int offset = 0; offset < BIT(asidLowBits); offset++) {
-//             asid_map_t asid_map = pool->array[offset];
-//             if (asid_map_get_type(asid_map) == asid_map_asid_map_vspace) {
-//                 vspace_root_t *vspace = (vspace_root_t *)asid_map_asid_map_vspace_get_vspace_root(asid_map);
-//                 hwASIDInvalidate(asid_base + offset, vspace);
-//             }
-//         }
-//         x86KSASIDTable[asid_base >> asidLowBits] = NULL;
-//         setVMRoot(NODE_STATE(ksCurThread));
+//         vaddr += BIT(seL4_HugePageBits);
 //     }
-// }
 
-// exception_t performASIDControlInvocation(void *frame, cte_t *slot, cte_t *parent, asid_t asid_base)
-// {
-//     /** AUXUPD: "(True, typ_region_bytes (ptr_val \<acute>frame) 12)" */
-//     /** GHOSTUPD: "(True, gs_clear_region (ptr_val \<acute>frame) 12)" */
-//     cap_untyped_cap_ptr_set_capFreeIndex(&(parent->cap),
-//                                          MAX_FREE_INDEX(cap_untyped_cap_get_capBlockSize(parent->cap)));
+//     /* put the PD into the PDPT */
+//     x64KSKernelPDPT[GET_PDPT_INDEX(KDEV_BASE)] = pdpte_pdpte_pd_new(
+//                                                      0, /* xd */
+//                                                      kpptr_to_paddr(x64KSKernelPD),
+//                                                      0, /* accessed */
+//                                                      0, /* cache_disabled */
+//                                                      0, /* write_through */
+//                                                      0, /* super_user */
+//                                                      1, /* read_write */
+//                                                      1  /* present */
+//                                                  );
+//     /* put the PT into the PD */
+//     x64KSKernelPD[0] = pde_pde_pt_new(
+//                            0, /* xd */
+//                            kpptr_to_paddr(x64KSKernelPT),
+//                            0, /* accessed */
+//                            0, /* cache_disabled */
+//                            0, /* write_through */
+//                            0, /* super_user */
+//                            1, /* read_write */
+//                            1  /* present */
+//                        );
+// #else
 
-//     memzero(frame, BIT(pageBitsForSize(X86_SmallPage)));
-//     /** AUXUPD: "(True, ptr_retyps 1 (Ptr (ptr_val \<acute>frame) :: asid_pool_C ptr))" */
+//     int pd_index = 0;
+//     /* use 2 MiB page size */
+//     /* verify that the kernel window as at the last entry of the PML4 */
+//     assert(GET_PML4_INDEX(PPTR_BASE) == BIT(PML4_INDEX_BITS) - 1);
+//     /* verify that the kernel_base is located in the last entry of the PML4,
+//      * the second last entry of the PDPT, is 1gb aligned and 1gb in size */
+//     assert(GET_PML4_INDEX(KERNEL_ELF_BASE) == BIT(PML4_INDEX_BITS) - 1);
+//     assert(GET_PDPT_INDEX(KERNEL_ELF_BASE) == BIT(PML4_INDEX_BITS) - 2);
+//     assert(GET_PDPT_INDEX(KDEV_BASE) == BIT(PML4_INDEX_BITS) - 1);
+//     assert(IS_ALIGNED(KERNEL_ELF_BASE - KERNEL_ELF_PADDR_BASE, seL4_HugePageBits));
+//     assert(IS_ALIGNED(KDEV_BASE, seL4_HugePageBits));
 
-//     cteInsert(
-//         cap_asid_pool_cap_new(
-//             asid_base,          /* capASIDBase  */
-//             WORD_REF(frame)     /* capASIDPool  */
-//         ),
-//         parent,
-//         slot
-//     );
-//     /* Haskell error: "ASID pool's base must be aligned" */
-//     assert((asid_base & MASK(asidLowBits)) == 0);
-//     x86KSASIDTable[asid_base >> asidLowBits] = (asid_pool_t *)frame;
+//     /* place the PDPT into the PML4 */
+//     x64KSKernelPML4[GET_PML4_INDEX(PPTR_BASE)] = pml4e_new(
+//                                                      0, /* xd */
+//                                                      kpptr_to_paddr(x64KSKernelPDPT),
+//                                                      0, /* accessed */
+//                                                      0, /* cache_disabled */
+//                                                      0, /* write_through */
+//                                                      0, /* super_user */
+//                                                      1, /* read_write */
+//                                                      1  /* present */
+//                                                  );
 
-//     return EXCEPTION_NONE;
-// }
-
-// void deleteASID(asid_t asid, vspace_root_t *vspace)
-// {
-//     asid_pool_t *poolPtr;
-
-//     poolPtr = x86KSASIDTable[asid >> asidLowBits];
-//     if (poolPtr != NULL) {
-//         asid_map_t asid_map = poolPtr->array[asid & MASK(asidLowBits)];
-//         if (asid_map_get_type(asid_map) == asid_map_asid_map_vspace &&
-//             (vspace_root_t *)asid_map_asid_map_vspace_get_vspace_root(asid_map) == vspace) {
-//             hwASIDInvalidate(asid, vspace);
-//             poolPtr->array[asid & MASK(asidLowBits)] = asid_map_asid_map_none_new();
-//             setVMRoot(NODE_STATE(ksCurThread));
-//         }
+//     for (pd_index = 0; pd_index < PADDR_TOP >> seL4_HugePageBits; pd_index++) {
+//         /* put the 1GB kernel_base mapping into the PDPT */
+//         x64KSKernelPDPT[GET_PDPT_INDEX(PPTR_BASE) + pd_index] = pdpte_pdpte_pd_new(
+//                                                                     0, /* xd */
+//                                                                     kpptr_to_paddr(&x64KSKernelPDs[pd_index][0]),
+//                                                                     0, /* accessed */
+//                                                                     0, /* cache disabled */
+//                                                                     0, /* write through */
+//                                                                     0, /* super user */
+//                                                                     1, /* read write */
+//                                                                     1 /* present */
+//                                                                 );
 //     }
+
+//     x64KSKernelPDPT[GET_PDPT_INDEX(KERNEL_ELF_BASE)] = pdpte_pdpte_pd_new(
+//                                                            0, /* xd */
+//                                                            kpptr_to_paddr(&x64KSKernelPDs[0][0]),
+//                                                            0, /* accessed */
+//                                                            0, /* cache disable */
+//                                                            1, /* write through */
+//                                                            0, /* super user */
+//                                                            1, /* read write */
+//                                                            1  /* present */
+//                                                        );
+
+//     paddr = 0;
+//     vaddr = PPTR_BASE;
+
+//     for (paddr = 0; paddr < PADDR_TOP;
+//          paddr += 0x200000) {
+
+//         int pd_index = GET_PDPT_INDEX(vaddr) - GET_PDPT_INDEX(PPTR_BASE);
+//         int pde_index = GET_PD_INDEX(vaddr);
+
+//         x64KSKernelPDs[pd_index][pde_index] = pde_pde_large_new(
+//                                                   0, /* xd */
+//                                                   paddr,
+//                                                   0, /* pat */
+//                                                   KERNEL_IS_GLOBAL(), /* global */
+//                                                   0, /* dirty */
+//                                                   0, /* accessed */
+//                                                   0, /* cache disabled */
+//                                                   0, /* write through */
+//                                                   0, /* super user */
+//                                                   1, /* read write */
+//                                                   1  /* present */
+//                                               );
+//         vaddr += 0x200000;
+//     }
+
+//     /* put the PD into the PDPT */
+//     x64KSKernelPDPT[GET_PDPT_INDEX(KDEV_BASE)] = pdpte_pdpte_pd_new(
+//                                                      0, /* xd */
+//                                                      kpptr_to_paddr(&x64KSKernelPDs[BIT(PDPT_INDEX_BITS)
+//                                                      - 1][0]), 0, /* accessed */ 0, /*
+//                                                      cache_disabled */ 0, /* write_through */ 0,
+//                                                      /* super_user */ 1, /* read_write */ 1  /*
+//                                                      present */
+//                                                  );
+
+//     /* put the PT into the PD */
+//     x64KSKernelPDs[BIT(PDPT_INDEX_BITS) - 1][0] = pde_pde_pt_new(
+//                                                       0, /* xd */
+//                                                       kpptr_to_paddr(x64KSKernelPT),
+//                                                       0, /* accessed */
+//                                                       0, /* cache_disabled */
+//                                                       0, /* write_through */
+//                                                       0, /* super_user */
+//                                                       1, /* read_write */
+//                                                       1  /* present */
+//                                                   );
+// #endif
+
+// #if CONFIG_MAX_NUM_TRACE_POINTS > 0
+//     /* use the last PD entry as the benchmark log storage.
+//      * the actual backing physical memory will be filled
+//      * later by using alloc_region */
+//     ksLog = (ks_log_entry_t *)(KDEV_BASE + 0x200000 * (BIT(PD_INDEX_BITS) - 1));
+// #endif
+
+//     /* now map in the kernel devices */
+//     if (!map_kernel_window_devices(x64KSKernelPT, num_ioapic, ioapic_paddrs, num_drhu,
+//     drhu_list)) {
+//         return false;
+//     }
+
+// #ifdef ENABLE_SMP_SUPPORT
+//     /* initialize the TLB bitmap */
+//     tlb_bitmap_init(x64KSKernelPML4);
+// #endif /* ENABLE_SMP_SUPPORT */
+
+//     /* In boot code, so fine to just trash everything here */
+//     invalidateLocalTranslationAll();
+//     printf("Mapping kernel window is done\n");
+//     return true;
 // }
 
-word_t *PURE lookupIPCBuffer(bool_t isReceiver, tcb_t *thread)
-{
-    word_t      w_bufferPtr;
-    cap_t       bufferCap;
-    vm_rights_t vm_rights;
+#ifdef CONFIG_KERNEL_SKIM_WINDOW
+BOOT_CODE bool_t map_skim_window(vptr_t skim_start, vptr_t skim_end) {
+  /* place the PDPT into the PML4 */
+  x64KSSKIMPML4[GET_PML4_INDEX(PPTR_BASE)] =
+      pml4e_new(0,                                /* xd */
+                kpptr_to_paddr(x64KSSKIMPDPT), 0, /* accessed */
+                0,                                /* cache_disabled */
+                0,                                /* write_through */
+                0,                                /* super_user */
+                1,                                /* read_write */
+                1                                 /* present */
+      );
+  /* place the PD into the kernel_base slot of the PDPT */
+  x64KSSKIMPDPT[GET_PDPT_INDEX(KERNEL_ELF_BASE)] =
+      pdpte_pdpte_pd_new(0,                              /* xd */
+                         kpptr_to_paddr(x64KSSKIMPD), 0, /* accessed */
+                         0,                              /* cache_disabled */
+                         0,                              /* write_through */
+                         0,                              /* super_user */
+                         1,                              /* read_write */
+                         1                               /* present */
+      );
+  /* map the skim portion into the PD. we expect it to be 2M aligned */
+  assert((skim_start % BIT(seL4_LargePageBits)) == 0);
+  assert((skim_end % BIT(seL4_LargePageBits)) == 0);
+  uint64_t paddr = kpptr_to_paddr((void *)skim_start);
+  for (int i = GET_PD_INDEX(skim_start); i < GET_PD_INDEX(skim_end); i++) {
+    x64KSSKIMPD[i] = pde_pde_large_new(0,                  /* xd */
+                                       paddr, 0,           /* pat */
+                                       KERNEL_IS_GLOBAL(), /* global */
+                                       0,                  /* dirty */
+                                       0,                  /* accessed */
+                                       0,                  /* cache_disabled */
+                                       0,                  /* write_through */
+                                       0,                  /* super_user */
+                                       1,                  /* read_write */
+                                       1                   /* present */
+    );
+    paddr += BIT(seL4_LargePageBits);
+  }
+  return true;
+}
+#endif
 
-    w_bufferPtr = thread->tcbIPCBuffer;
-    bufferCap = TCB_PTR_CTE_PTR(thread, tcbBuffer)->cap;
-
-    if (cap_get_capType(bufferCap) != cap_frame_cap) {
-        return NULL;
-    }
-    if (unlikely(cap_frame_cap_get_capFIsDevice(bufferCap))) {
-        return NULL;
-    }
-
-    vm_rights = cap_frame_cap_get_capFVMRights(bufferCap);
-    if (vm_rights == VMReadWrite || (!isReceiver && vm_rights == VMReadOnly)) {
-        word_t basePtr, pageBits;
-
-        basePtr = cap_frame_cap_get_capFBasePtr(bufferCap);
-        pageBits = pageBitsForSize(cap_frame_cap_get_capFSize(bufferCap));
-        return (word_t *)(basePtr + (w_bufferPtr & MASK(pageBits)));
-    } else {
-        return NULL;
-    }
+BOOT_CODE void init_tss(tss_t *tss) {
+  word_t base = (word_t)&x64KSIRQStack[CURRENT_CPU_INDEX()][IRQ_STACK_SIZE];
+  *tss = tss_new(sizeof(*tss), /* io map base */
+                 0, 0,         /* ist 7 */
+                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                 /* ist 1 is the stack frame we use for interrupts */
+                 base >> 32, base & 0xffffffff, /* ist 1 */
+                 0, 0,                          /* rsp 2 */
+                 0, 0,                          /* rsp 1 */
+                 0, 0                           /* rsp 0 */
+  );
+  /* set the IO map to all 1 to block user IN/OUT instructions */
+  memset(&x86KSGlobalState[CURRENT_CPU_INDEX()].x86KStss.io_map[0], 0xff,
+         sizeof(x86KSGlobalState[CURRENT_CPU_INDEX()].x86KStss.io_map));
 }
 
-// bool_t CONST isValidVTableRoot(cap_t cap)
-// {
-//     return isValidNativeRoot(cap);
-// }
-
-
-// BOOT_CODE bool_t map_kernel_window_devices(pte_t *pt, uint32_t num_ioapic, paddr_t *ioapic_paddrs, uint32_t num_drhu,
-//                                            paddr_t *drhu_list)
-// {
-//     word_t idx = (KDEV_BASE & MASK(LARGE_PAGE_BITS)) >> PAGE_BITS;
-//     paddr_t phys;
-//     pte_t pte;
-//     unsigned int i;
-//     /* map kernel devices: APIC */
-//     phys = apic_get_base_paddr();
-//     if (!phys) {
-//         return false;
-//     }
-//     if (!reserve_region((p_region_t) {
-//     phys, phys + 0x1000
-// })) {
-//         return false;
-//     }
-//     pte = x86_make_device_pte(phys);
-
-//     assert(idx == (PPTR_APIC & MASK(LARGE_PAGE_BITS)) >> PAGE_BITS);
-//     pt[idx] = pte;
-//     idx++;
-//     for (i = 0; i < num_ioapic; i++) {
-//         phys = ioapic_paddrs[i];
-//         if (!reserve_region((p_region_t) {
-//         phys, phys + 0x1000
-//     })) {
-//             return false;
-//         }
-//         pte = x86_make_device_pte(phys);
-//         assert(idx == ((PPTR_IOAPIC_START + i * BIT(PAGE_BITS)) & MASK(LARGE_PAGE_BITS)) >> PAGE_BITS);
-//         pt[idx] = pte;
-//         idx++;
-//         if (idx == BIT(PT_INDEX_BITS)) {
-//             return false;
-//         }
-//     }
-//     /* put in null mappings for any extra IOAPICs */
-//     for (; i < CONFIG_MAX_NUM_IOAPIC; i++) {
-//         pte = x86_make_empty_pte();
-//         assert(idx == ((PPTR_IOAPIC_START + i * BIT(PAGE_BITS)) & MASK(LARGE_PAGE_BITS)) >> PAGE_BITS);
-//         pt[idx] = pte;
-//         idx++;
-//     }
-
-//     /* map kernel devices: IOMMUs */
-//     for (i = 0; i < num_drhu; i++) {
-//         phys = (paddr_t)drhu_list[i];
-//         if (!reserve_region((p_region_t) {
-//         phys, phys + 0x1000
-//     })) {
-//             return false;
-//         }
-//         pte = x86_make_device_pte(phys);
-
-//         assert(idx == ((PPTR_DRHU_START + i * BIT(PAGE_BITS)) & MASK(LARGE_PAGE_BITS)) >> PAGE_BITS);
-//         pt[idx] = pte;
-//         idx++;
-//         if (idx == BIT(PT_INDEX_BITS)) {
-//             return false;
-//         }
-//     }
-
-//     /* mark unused kernel-device pages as 'not present' */
-//     while (idx < BIT(PT_INDEX_BITS)) {
-//         pte = x86_make_empty_pte();
-//         pt[idx] = pte;
-//         idx++;
-//     }
-
-//     /* Check we haven't added too many kernel-device mappings.*/
-//     assert(idx == BIT(PT_INDEX_BITS));
-//     return true;
-// }
-
-// BOOT_CODE static void init_idt(idt_entry_t *idt)
-// {
-//     init_idt_entry(idt, 0x00, int_00);
-//     init_idt_entry(idt, 0x01, int_01);
-//     init_idt_entry(idt, 0x02, int_02);
-//     init_idt_entry(idt, 0x03, int_03);
-//     init_idt_entry(idt, 0x04, int_04);
-//     init_idt_entry(idt, 0x05, int_05);
-//     init_idt_entry(idt, 0x06, int_06);
-//     init_idt_entry(idt, 0x07, int_07);
-//     init_idt_entry(idt, 0x08, int_08);
-//     init_idt_entry(idt, 0x09, int_09);
-//     init_idt_entry(idt, 0x0a, int_0a);
-//     init_idt_entry(idt, 0x0b, int_0b);
-//     init_idt_entry(idt, 0x0c, int_0c);
-//     init_idt_entry(idt, 0x0d, int_0d);
-//     init_idt_entry(idt, 0x0e, int_0e);
-//     init_idt_entry(idt, 0x0f, int_0f);
-
-//     init_idt_entry(idt, 0x10, int_10);
-//     init_idt_entry(idt, 0x11, int_11);
-//     init_idt_entry(idt, 0x12, int_12);
-//     init_idt_entry(idt, 0x13, int_13);
-//     init_idt_entry(idt, 0x14, int_14);
-//     init_idt_entry(idt, 0x15, int_15);
-//     init_idt_entry(idt, 0x16, int_16);
-//     init_idt_entry(idt, 0x17, int_17);
-//     init_idt_entry(idt, 0x18, int_18);
-//     init_idt_entry(idt, 0x19, int_19);
-//     init_idt_entry(idt, 0x1a, int_1a);
-//     init_idt_entry(idt, 0x1b, int_1b);
-//     init_idt_entry(idt, 0x1c, int_1c);
-//     init_idt_entry(idt, 0x1d, int_1d);
-//     init_idt_entry(idt, 0x1e, int_1e);
-//     init_idt_entry(idt, 0x1f, int_1f);
-
-//     init_idt_entry(idt, 0x20, int_20);
-//     init_idt_entry(idt, 0x21, int_21);
-//     init_idt_entry(idt, 0x22, int_22);
-//     init_idt_entry(idt, 0x23, int_23);
-//     init_idt_entry(idt, 0x24, int_24);
-//     init_idt_entry(idt, 0x25, int_25);
-//     init_idt_entry(idt, 0x26, int_26);
-//     init_idt_entry(idt, 0x27, int_27);
-//     init_idt_entry(idt, 0x28, int_28);
-//     init_idt_entry(idt, 0x29, int_29);
-//     init_idt_entry(idt, 0x2a, int_2a);
-//     init_idt_entry(idt, 0x2b, int_2b);
-//     init_idt_entry(idt, 0x2c, int_2c);
-//     init_idt_entry(idt, 0x2d, int_2d);
-//     init_idt_entry(idt, 0x2e, int_2e);
-//     init_idt_entry(idt, 0x2f, int_2f);
-
-//     init_idt_entry(idt, 0x30, int_30);
-//     init_idt_entry(idt, 0x31, int_31);
-//     init_idt_entry(idt, 0x32, int_32);
-//     init_idt_entry(idt, 0x33, int_33);
-//     init_idt_entry(idt, 0x34, int_34);
-//     init_idt_entry(idt, 0x35, int_35);
-//     init_idt_entry(idt, 0x36, int_36);
-//     init_idt_entry(idt, 0x37, int_37);
-//     init_idt_entry(idt, 0x38, int_38);
-//     init_idt_entry(idt, 0x39, int_39);
-//     init_idt_entry(idt, 0x3a, int_3a);
-//     init_idt_entry(idt, 0x3b, int_3b);
-//     init_idt_entry(idt, 0x3c, int_3c);
-//     init_idt_entry(idt, 0x3d, int_3d);
-//     init_idt_entry(idt, 0x3e, int_3e);
-//     init_idt_entry(idt, 0x3f, int_3f);
-
-//     init_idt_entry(idt, 0x40, int_40);
-//     init_idt_entry(idt, 0x41, int_41);
-//     init_idt_entry(idt, 0x42, int_42);
-//     init_idt_entry(idt, 0x43, int_43);
-//     init_idt_entry(idt, 0x44, int_44);
-//     init_idt_entry(idt, 0x45, int_45);
-//     init_idt_entry(idt, 0x46, int_46);
-//     init_idt_entry(idt, 0x47, int_47);
-//     init_idt_entry(idt, 0x48, int_48);
-//     init_idt_entry(idt, 0x49, int_49);
-//     init_idt_entry(idt, 0x4a, int_4a);
-//     init_idt_entry(idt, 0x4b, int_4b);
-//     init_idt_entry(idt, 0x4c, int_4c);
-//     init_idt_entry(idt, 0x4d, int_4d);
-//     init_idt_entry(idt, 0x4e, int_4e);
-//     init_idt_entry(idt, 0x4f, int_4f);
-
-//     init_idt_entry(idt, 0x50, int_50);
-//     init_idt_entry(idt, 0x51, int_51);
-//     init_idt_entry(idt, 0x52, int_52);
-//     init_idt_entry(idt, 0x53, int_53);
-//     init_idt_entry(idt, 0x54, int_54);
-//     init_idt_entry(idt, 0x55, int_55);
-//     init_idt_entry(idt, 0x56, int_56);
-//     init_idt_entry(idt, 0x57, int_57);
-//     init_idt_entry(idt, 0x58, int_58);
-//     init_idt_entry(idt, 0x59, int_59);
-//     init_idt_entry(idt, 0x5a, int_5a);
-//     init_idt_entry(idt, 0x5b, int_5b);
-//     init_idt_entry(idt, 0x5c, int_5c);
-//     init_idt_entry(idt, 0x5d, int_5d);
-//     init_idt_entry(idt, 0x5e, int_5e);
-//     init_idt_entry(idt, 0x5f, int_5f);
-
-//     init_idt_entry(idt, 0x60, int_60);
-//     init_idt_entry(idt, 0x61, int_61);
-//     init_idt_entry(idt, 0x62, int_62);
-//     init_idt_entry(idt, 0x63, int_63);
-//     init_idt_entry(idt, 0x64, int_64);
-//     init_idt_entry(idt, 0x65, int_65);
-//     init_idt_entry(idt, 0x66, int_66);
-//     init_idt_entry(idt, 0x67, int_67);
-//     init_idt_entry(idt, 0x68, int_68);
-//     init_idt_entry(idt, 0x69, int_69);
-//     init_idt_entry(idt, 0x6a, int_6a);
-//     init_idt_entry(idt, 0x6b, int_6b);
-//     init_idt_entry(idt, 0x6c, int_6c);
-//     init_idt_entry(idt, 0x6d, int_6d);
-//     init_idt_entry(idt, 0x6e, int_6e);
-//     init_idt_entry(idt, 0x6f, int_6f);
-
-//     init_idt_entry(idt, 0x70, int_70);
-//     init_idt_entry(idt, 0x71, int_71);
-//     init_idt_entry(idt, 0x72, int_72);
-//     init_idt_entry(idt, 0x73, int_73);
-//     init_idt_entry(idt, 0x74, int_74);
-//     init_idt_entry(idt, 0x75, int_75);
-//     init_idt_entry(idt, 0x76, int_76);
-//     init_idt_entry(idt, 0x77, int_77);
-//     init_idt_entry(idt, 0x78, int_78);
-//     init_idt_entry(idt, 0x79, int_79);
-//     init_idt_entry(idt, 0x7a, int_7a);
-//     init_idt_entry(idt, 0x7b, int_7b);
-//     init_idt_entry(idt, 0x7c, int_7c);
-//     init_idt_entry(idt, 0x7d, int_7d);
-//     init_idt_entry(idt, 0x7e, int_7e);
-//     init_idt_entry(idt, 0x7f, int_7f);
-
-//     init_idt_entry(idt, 0x80, int_80);
-//     init_idt_entry(idt, 0x81, int_81);
-//     init_idt_entry(idt, 0x82, int_82);
-//     init_idt_entry(idt, 0x83, int_83);
-//     init_idt_entry(idt, 0x84, int_84);
-//     init_idt_entry(idt, 0x85, int_85);
-//     init_idt_entry(idt, 0x86, int_86);
-//     init_idt_entry(idt, 0x87, int_87);
-//     init_idt_entry(idt, 0x88, int_88);
-//     init_idt_entry(idt, 0x89, int_89);
-//     init_idt_entry(idt, 0x8a, int_8a);
-//     init_idt_entry(idt, 0x8b, int_8b);
-//     init_idt_entry(idt, 0x8c, int_8c);
-//     init_idt_entry(idt, 0x8d, int_8d);
-//     init_idt_entry(idt, 0x8e, int_8e);
-//     init_idt_entry(idt, 0x8f, int_8f);
-
-//     init_idt_entry(idt, 0x90, int_90);
-//     init_idt_entry(idt, 0x91, int_91);
-//     init_idt_entry(idt, 0x92, int_92);
-//     init_idt_entry(idt, 0x93, int_93);
-//     init_idt_entry(idt, 0x94, int_94);
-//     init_idt_entry(idt, 0x95, int_95);
-//     init_idt_entry(idt, 0x96, int_96);
-//     init_idt_entry(idt, 0x97, int_97);
-//     init_idt_entry(idt, 0x98, int_98);
-//     init_idt_entry(idt, 0x99, int_99);
-//     init_idt_entry(idt, 0x9a, int_9a);
-//     init_idt_entry(idt, 0x9b, int_9b);
-//     init_idt_entry(idt, 0x9c, int_9c);
-//     init_idt_entry(idt, 0x9d, int_9d);
-//     init_idt_entry(idt, 0x9e, int_9e);
-//     init_idt_entry(idt, 0x9f, int_9f);
-
-//     init_idt_entry(idt, 0xa0, int_a0);
-//     init_idt_entry(idt, 0xa1, int_a1);
-//     init_idt_entry(idt, 0xa2, int_a2);
-//     init_idt_entry(idt, 0xa3, int_a3);
-//     init_idt_entry(idt, 0xa4, int_a4);
-//     init_idt_entry(idt, 0xa5, int_a5);
-//     init_idt_entry(idt, 0xa6, int_a6);
-//     init_idt_entry(idt, 0xa7, int_a7);
-//     init_idt_entry(idt, 0xa8, int_a8);
-//     init_idt_entry(idt, 0xa9, int_a9);
-//     init_idt_entry(idt, 0xaa, int_aa);
-//     init_idt_entry(idt, 0xab, int_ab);
-//     init_idt_entry(idt, 0xac, int_ac);
-//     init_idt_entry(idt, 0xad, int_ad);
-//     init_idt_entry(idt, 0xae, int_ae);
-//     init_idt_entry(idt, 0xaf, int_af);
-
-//     init_idt_entry(idt, 0xb0, int_b0);
-//     init_idt_entry(idt, 0xb1, int_b1);
-//     init_idt_entry(idt, 0xb2, int_b2);
-//     init_idt_entry(idt, 0xb3, int_b3);
-//     init_idt_entry(idt, 0xb4, int_b4);
-//     init_idt_entry(idt, 0xb5, int_b5);
-//     init_idt_entry(idt, 0xb6, int_b6);
-//     init_idt_entry(idt, 0xb7, int_b7);
-//     init_idt_entry(idt, 0xb8, int_b8);
-//     init_idt_entry(idt, 0xb9, int_b9);
-//     init_idt_entry(idt, 0xba, int_ba);
-//     init_idt_entry(idt, 0xbb, int_bb);
-//     init_idt_entry(idt, 0xbc, int_bc);
-//     init_idt_entry(idt, 0xbd, int_bd);
-//     init_idt_entry(idt, 0xbe, int_be);
-//     init_idt_entry(idt, 0xbf, int_bf);
-
-//     init_idt_entry(idt, 0xc0, int_c0);
-//     init_idt_entry(idt, 0xc1, int_c1);
-//     init_idt_entry(idt, 0xc2, int_c2);
-//     init_idt_entry(idt, 0xc3, int_c3);
-//     init_idt_entry(idt, 0xc4, int_c4);
-//     init_idt_entry(idt, 0xc5, int_c5);
-//     init_idt_entry(idt, 0xc6, int_c6);
-//     init_idt_entry(idt, 0xc7, int_c7);
-//     init_idt_entry(idt, 0xc8, int_c8);
-//     init_idt_entry(idt, 0xc9, int_c9);
-//     init_idt_entry(idt, 0xca, int_ca);
-//     init_idt_entry(idt, 0xcb, int_cb);
-//     init_idt_entry(idt, 0xcc, int_cc);
-//     init_idt_entry(idt, 0xcd, int_cd);
-//     init_idt_entry(idt, 0xce, int_ce);
-//     init_idt_entry(idt, 0xcf, int_cf);
-
-//     init_idt_entry(idt, 0xd0, int_d0);
-//     init_idt_entry(idt, 0xd1, int_d1);
-//     init_idt_entry(idt, 0xd2, int_d2);
-//     init_idt_entry(idt, 0xd3, int_d3);
-//     init_idt_entry(idt, 0xd4, int_d4);
-//     init_idt_entry(idt, 0xd5, int_d5);
-//     init_idt_entry(idt, 0xd6, int_d6);
-//     init_idt_entry(idt, 0xd7, int_d7);
-//     init_idt_entry(idt, 0xd8, int_d8);
-//     init_idt_entry(idt, 0xd9, int_d9);
-//     init_idt_entry(idt, 0xda, int_da);
-//     init_idt_entry(idt, 0xdb, int_db);
-//     init_idt_entry(idt, 0xdc, int_dc);
-//     init_idt_entry(idt, 0xdd, int_dd);
-//     init_idt_entry(idt, 0xde, int_de);
-//     init_idt_entry(idt, 0xdf, int_df);
-
-//     init_idt_entry(idt, 0xe0, int_e0);
-//     init_idt_entry(idt, 0xe1, int_e1);
-//     init_idt_entry(idt, 0xe2, int_e2);
-//     init_idt_entry(idt, 0xe3, int_e3);
-//     init_idt_entry(idt, 0xe4, int_e4);
-//     init_idt_entry(idt, 0xe5, int_e5);
-//     init_idt_entry(idt, 0xe6, int_e6);
-//     init_idt_entry(idt, 0xe7, int_e7);
-//     init_idt_entry(idt, 0xe8, int_e8);
-//     init_idt_entry(idt, 0xe9, int_e9);
-//     init_idt_entry(idt, 0xea, int_ea);
-//     init_idt_entry(idt, 0xeb, int_eb);
-//     init_idt_entry(idt, 0xec, int_ec);
-//     init_idt_entry(idt, 0xed, int_ed);
-//     init_idt_entry(idt, 0xee, int_ee);
-//     init_idt_entry(idt, 0xef, int_ef);
-
-//     init_idt_entry(idt, 0xf0, int_f0);
-//     init_idt_entry(idt, 0xf1, int_f1);
-//     init_idt_entry(idt, 0xf2, int_f2);
-//     init_idt_entry(idt, 0xf3, int_f3);
-//     init_idt_entry(idt, 0xf4, int_f4);
-//     init_idt_entry(idt, 0xf5, int_f5);
-//     init_idt_entry(idt, 0xf6, int_f6);
-//     init_idt_entry(idt, 0xf7, int_f7);
-//     init_idt_entry(idt, 0xf8, int_f8);
-//     init_idt_entry(idt, 0xf9, int_f9);
-//     init_idt_entry(idt, 0xfa, int_fa);
-//     init_idt_entry(idt, 0xfb, int_fb);
-//     init_idt_entry(idt, 0xfc, int_fc);
-//     init_idt_entry(idt, 0xfd, int_fd);
-//     init_idt_entry(idt, 0xfe, int_fe);
-//     init_idt_entry(idt, 0xff, int_ff);
-// }
-
-// BOOT_CODE bool_t init_vm_state(void)
-// {
-//     word_t cacheLineSize;
-//     x86KScacheLineSizeBits = getCacheLineSizeBits();
-//     if (!x86KScacheLineSizeBits) {
-//         return false;
-//     }
-
-//     cacheLineSize = BIT(x86KScacheLineSizeBits);
-//     if (cacheLineSize != L1_CACHE_LINE_SIZE) {
-//         printf("Configured cache line size is %d but detected size is %lu\n",
-//                L1_CACHE_LINE_SIZE, cacheLineSize);
-//         SMP_COND_STATEMENT(return false);
-//     }
-
-//     /*
-//      * Work around -Waddress-of-packed-member. TSS is the first thing
-//      * in the struct and so it's safe to take its address.
-//      */
-//     void *tss_ptr = &x86KSGlobalState[CURRENT_CPU_INDEX()].x86KStss.tss;
-//     init_tss(tss_ptr);
-//     init_gdt(x86KSGlobalState[CURRENT_CPU_INDEX()].x86KSgdt, tss_ptr);
-//     init_idt(x86KSGlobalState[CURRENT_CPU_INDEX()].x86KSidt);
-//     return true;
-// }
-
-// BOOT_CODE bool_t init_pat_msr(void)
-// {
-//     x86_pat_msr_t pat_msr;
-//     /* First verify PAT is supported by the machine.
-//      *      See section 11.12.1 of Volume 3 of the Intel manual */
-//     if ((x86_cpuid_edx(0x1, 0x0) & BIT(16)) == 0) {
-//         printf("PAT support not found\n");
-//         return false;
-//     }
-//     pat_msr.words[0] = x86_rdmsr_low(IA32_PAT_MSR);
-//     pat_msr.words[1] = x86_rdmsr_high(IA32_PAT_MSR);
-//     /* Set up the PAT MSR to the Intel defaults, just in case
-//      * they have been changed but a bootloader somewhere along the way */
-//     pat_msr = x86_pat_msr_set_pa0(pat_msr, IA32_PAT_MT_WRITE_BACK);
-//     pat_msr = x86_pat_msr_set_pa1(pat_msr, IA32_PAT_MT_WRITE_THROUGH);
-//     pat_msr = x86_pat_msr_set_pa2(pat_msr, IA32_PAT_MT_UNCACHED);
-//     pat_msr = x86_pat_msr_set_pa3(pat_msr, IA32_PAT_MT_UNCACHEABLE);
-//     /* Add the WriteCombining cache type to the PAT */
-//     pat_msr = x86_pat_msr_set_pa4(pat_msr, IA32_PAT_MT_WRITE_COMBINING);
-//     x86_wrmsr(IA32_PAT_MSR, ((uint64_t)pat_msr.words[1]) << 32 | pat_msr.words[0]);
-//     return true;
-// }
-
-// BOOT_CODE void write_it_asid_pool(cap_t it_ap_cap, cap_t it_vspace_cap)
-// {
-//     asid_pool_t *ap = ASID_POOL_PTR(pptr_of_cap(it_ap_cap));
-//     ap->array[IT_ASID] = asid_map_asid_map_vspace_new(pptr_of_cap(it_vspace_cap));
-//     x86KSASIDTable[IT_ASID >> asidLowBits] = ap;
-// }
-
-// asid_map_t findMapForASID(asid_t asid)
-// {
-//     asid_pool_t        *poolPtr;
-
-//     poolPtr = x86KSASIDTable[asid >> asidLowBits];
-//     if (!poolPtr) {
-//         return asid_map_asid_map_none_new();
-//     }
-
-//     return poolPtr->array[asid & MASK(asidLowBits)];
-// }
-
-// findVSpaceForASID_ret_t findVSpaceForASID(asid_t asid)
-// {
-//     findVSpaceForASID_ret_t ret;
-//     asid_map_t asid_map;
-
-//     asid_map = findMapForASID(asid);
-//     if (asid_map_get_type(asid_map) != asid_map_asid_map_vspace) {
-//         current_lookup_fault = lookup_fault_invalid_root_new();
-
-//         ret.vspace_root = NULL;
-//         ret.status = EXCEPTION_LOOKUP_FAULT;
-//         return ret;
-//     }
-
-//     ret.vspace_root = (vspace_root_t *)asid_map_asid_map_vspace_get_vspace_root(asid_map);
-//     ret.status = EXCEPTION_NONE;
-//     return ret;
-// }
-
-// exception_t handleVMFault(tcb_t *thread, vm_fault_type_t vm_faultType)
-// {
-//     word_t addr;
-//     uint32_t fault;
-
-//     addr = getFaultAddr();
-//     fault = getRegister(thread, Error);
-
-//     switch (vm_faultType) {
-//     case X86DataFault:
-//         current_fault = seL4_Fault_VMFault_new(addr, fault, false);
-//         return EXCEPTION_FAULT;
-
-//     case X86InstructionFault:
-//         current_fault = seL4_Fault_VMFault_new(addr, fault, true);
-//         return EXCEPTION_FAULT;
-
-//     default:
-//         fail("Invalid VM fault type");
-//     }
-// }
-
-// uint32_t CONST WritableFromVMRights(vm_rights_t vm_rights)
-// {
-//     switch (vm_rights) {
-//     case VMReadOnly:
-//         return 0;
-
-//     case VMKernelOnly:
-//     case VMReadWrite:
-//         return 1;
-
-//     default:
-//         fail("Invalid VM rights");
-//     }
-// }
-
-// uint32_t CONST SuperUserFromVMRights(vm_rights_t vm_rights)
-// {
-//     switch (vm_rights) {
-//     case VMKernelOnly:
-//         return 0;
-
-//     case VMReadOnly:
-//     case VMReadWrite:
-//         return 1;
-
-//     default:
-//         fail("Invalid VM rights");
-//     }
-// }
-
-// lookupPTSlot_ret_t lookupPTSlot(vspace_root_t *vspace, vptr_t vptr)
-// {
-//     lookupPTSlot_ret_t ret;
-//     lookupPDSlot_ret_t pdSlot;
-
-//     pdSlot = lookupPDSlot(vspace, vptr);
-//     if (pdSlot.status != EXCEPTION_NONE) {
-//         ret.ptSlot = NULL;
-//         ret.status = pdSlot.status;
-//         return ret;
-//     }
-//     if ((pde_ptr_get_page_size(pdSlot.pdSlot) != pde_pde_pt) ||
-//         !pde_pde_pt_ptr_get_present(pdSlot.pdSlot)) {
-//         current_lookup_fault = lookup_fault_missing_capability_new(PAGE_BITS + PT_INDEX_BITS);
-//         ret.ptSlot = NULL;
-//         ret.status = EXCEPTION_LOOKUP_FAULT;
-//         return ret;
-//     } else {
-//         pte_t *pt;
-//         pte_t *ptSlot;
-//         word_t ptIndex;
-
-//         pt = paddr_to_pptr(pde_pde_pt_ptr_get_pt_base_address(pdSlot.pdSlot));
-//         ptIndex = (vptr >> PAGE_BITS) & MASK(PT_INDEX_BITS);
-//         ptSlot = pt + ptIndex;
-
-//         ret.ptSlot = ptSlot;
-//         ret.status = EXCEPTION_NONE;
-//         return ret;
-//     }
-// }
-
-// exception_t checkValidIPCBuffer(vptr_t vptr, cap_t cap)
-// {
-//     if (cap_get_capType(cap) != cap_frame_cap) {
-//         userError("IPC Buffer is an invalid cap.");
-//         current_syscall_error.type = seL4_IllegalOperation;
-//         return EXCEPTION_SYSCALL_ERROR;
-//     }
-//     if (unlikely(cap_frame_cap_get_capFIsDevice(cap))) {
-//         userError("Specifying a device frame as an IPC buffer is not permitted.");
-//         current_syscall_error.type = seL4_IllegalOperation;
-//         return EXCEPTION_SYSCALL_ERROR;
-//     }
-
-//     if (!IS_ALIGNED(vptr, seL4_IPCBufferSizeBits)) {
-//         userError("IPC Buffer vaddr 0x%x is not aligned.", (int)vptr);
-//         current_syscall_error.type = seL4_AlignmentError;
-//         return EXCEPTION_SYSCALL_ERROR;
-//     }
-
-//     return EXCEPTION_NONE;
-// }
-
-// vm_rights_t CONST maskVMRights(vm_rights_t vm_rights, seL4_CapRights_t cap_rights_mask)
-// {
-//     if (vm_rights == VMReadOnly && seL4_CapRights_get_capAllowRead(cap_rights_mask)) {
-//         return VMReadOnly;
-//     }
-//     if (vm_rights == VMReadWrite && seL4_CapRights_get_capAllowRead(cap_rights_mask)) {
-//         if (!seL4_CapRights_get_capAllowWrite(cap_rights_mask)) {
-//             return VMReadOnly;
-//         } else {
-//             return VMReadWrite;
-//         }
-//     }
-//     return VMKernelOnly;
-// }
-
-// void flushTable(vspace_root_t *vspace, word_t vptr, pte_t *pt, asid_t asid)
-// {
-//     word_t i;
-//     cap_t        threadRoot;
-
-//     assert(IS_ALIGNED(vptr, PT_INDEX_BITS + PAGE_BITS));
-
-//     /* check if page table belongs to current address space */
-//     threadRoot = TCB_PTR_CTE_PTR(NODE_STATE(ksCurThread), tcbVTable)->cap;
-//     /* find valid mappings */
-//     for (i = 0; i < BIT(PT_INDEX_BITS); i++) {
-//         if (pte_get_present(pt[i])) {
-//             if (config_set(CONFIG_SUPPORT_PCID) || (isValidNativeRoot(threadRoot)
-//                                                     && (vspace_root_t *)pptr_of_cap(threadRoot) == vspace)) {
-//                 invalidateTranslationSingleASID(vptr + (i << PAGE_BITS), asid,
-//                                                 SMP_TERNARY(tlb_bitmap_get(vspace), 0));
-//             }
-//         }
-//     }
-// }
-
-
-// void unmapPage(vm_page_size_t page_size, asid_t asid, vptr_t vptr, void *pptr)
-// {
-//     findVSpaceForASID_ret_t find_ret;
-//     lookupPTSlot_ret_t  lu_ret;
-//     lookupPDSlot_ret_t  pd_ret;
-//     pde_t               *pde;
-
-//     find_ret = findVSpaceForASID(asid);
-//     if (find_ret.status != EXCEPTION_NONE) {
-//         return;
-//     }
-
-//     switch (page_size) {
-//     case X86_SmallPage:
-//         lu_ret = lookupPTSlot(find_ret.vspace_root, vptr);
-//         if (lu_ret.status != EXCEPTION_NONE) {
-//             return;
-//         }
-//         if (!(pte_ptr_get_present(lu_ret.ptSlot)
-//               && (pte_ptr_get_page_base_address(lu_ret.ptSlot)
-//                   == pptr_to_paddr(pptr)))) {
-//             return;
-//         }
-//         *lu_ret.ptSlot = makeUserPTEInvalid();
-//         break;
-
-//     case X86_LargePage:
-//         pd_ret = lookupPDSlot(find_ret.vspace_root, vptr);
-//         if (pd_ret.status != EXCEPTION_NONE) {
-//             return;
-//         }
-//         pde = pd_ret.pdSlot;
-//         if (!(pde_ptr_get_page_size(pde) == pde_pde_large
-//               && pde_pde_large_ptr_get_present(pde)
-//               && (pde_pde_large_ptr_get_page_base_address(pde)
-//                   == pptr_to_paddr(pptr)))) {
-//             return;
-//         }
-//         *pde = makeUserPDEInvalid();
-//         break;
-
-//     default:
-//         if (!modeUnmapPage(page_size, find_ret.vspace_root, vptr, pptr)) {
-//             return;
-//         }
-//         break;
-//     }
-
-//     invalidateTranslationSingleASID(vptr, asid,
-//                                     SMP_TERNARY(tlb_bitmap_get(find_ret.vspace_root), 0));
-// }
-
-// void unmapPageTable(asid_t asid, vptr_t vaddr, pte_t *pt)
-// {
-//     findVSpaceForASID_ret_t find_ret;
-//     lookupPDSlot_ret_t    lu_ret;
-
-//     find_ret = findVSpaceForASID(asid);
-//     if (find_ret.status != EXCEPTION_NONE) {
-//         return;
-//     }
-
-//     lu_ret = lookupPDSlot(find_ret.vspace_root, vaddr);
-//     if (lu_ret.status != EXCEPTION_NONE) {
-//         return;
-//     }
-
-//     /* check if the PD actually refers to the PT */
-//     if (!(pde_ptr_get_page_size(lu_ret.pdSlot) == pde_pde_pt &&
-//           pde_pde_pt_ptr_get_present(lu_ret.pdSlot) &&
-//           (pde_pde_pt_ptr_get_pt_base_address(lu_ret.pdSlot) == pptr_to_paddr(pt)))) {
-//         return;
-//     }
-
-//     flushTable(find_ret.vspace_root, vaddr, pt, asid);
-
-//     *lu_ret.pdSlot = makeUserPDEInvalid();
-
-//     invalidatePageStructureCacheASID(pptr_to_paddr(find_ret.vspace_root), asid,
-//                                      SMP_TERNARY(tlb_bitmap_get(find_ret.vspace_root), 0));
-// }
-
-// static exception_t performX86PageInvocationMapPTE(cap_t cap, cte_t *ctSlot, pte_t *ptSlot, pte_t pte,
-//                                                   vspace_root_t *vspace)
-// {
-//     ctSlot->cap = cap;
-//     *ptSlot = pte;
-//     invalidatePageStructureCacheASID(pptr_to_paddr(vspace), cap_frame_cap_get_capFMappedASID(cap),
-//                                      SMP_TERNARY(tlb_bitmap_get(vspace), 0));
-//     return EXCEPTION_NONE;
-// }
-
-// static exception_t performX86PageInvocationMapPDE(cap_t cap, cte_t *ctSlot, pde_t *pdSlot, pde_t pde,
-//                                                   vspace_root_t *vspace)
-// {
-//     ctSlot->cap = cap;
-//     *pdSlot = pde;
-//     invalidatePageStructureCacheASID(pptr_to_paddr(vspace), cap_frame_cap_get_capFMappedASID(cap),
-//                                      SMP_TERNARY(tlb_bitmap_get(vspace), 0));
-//     return EXCEPTION_NONE;
-// }
-
-
-// static exception_t performX86PageInvocationUnmap(cap_t cap, cte_t *ctSlot)
-// {
-//     assert(cap_frame_cap_get_capFMappedASID(cap));
-//     assert(cap_frame_cap_get_capFMapType(cap) == X86_MappingVSpace);
-//     // We have this `if` for something we just asserted to be true for simplicity of verification
-//     // This has no performance implications as when this function is inlined this `if` will be
-//     // inside an identical `if` and will therefore be elided
-//     if (cap_frame_cap_get_capFMappedASID(cap)) {
-//         unmapPage(
-//             cap_frame_cap_get_capFSize(cap),
-//             cap_frame_cap_get_capFMappedASID(cap),
-//             cap_frame_cap_get_capFMappedAddress(cap),
-//             (void *)cap_frame_cap_get_capFBasePtr(cap)
-//         );
-//     }
-
-//     cap_frame_cap_ptr_set_capFMappedAddress(&ctSlot->cap, 0);
-//     cap_frame_cap_ptr_set_capFMappedASID(&ctSlot->cap, asidInvalid);
-//     cap_frame_cap_ptr_set_capFMapType(&ctSlot->cap, X86_MappingNone);
-
-//     return EXCEPTION_NONE;
-// }
-
-// static exception_t performX86FrameInvocationUnmap(cap_t cap, cte_t *cte)
-// {
-//     if (cap_frame_cap_get_capFMappedASID(cap) != asidInvalid) {
-//         switch (cap_frame_cap_get_capFMapType(cap)) {
-//         case X86_MappingVSpace:
-//             return performX86PageInvocationUnmap(cap, cte);
-// #ifdef CONFIG_IOMMU
-//         case X86_MappingIOSpace:
-//             return performX86IOUnMapInvocation(cap, cte);
-// #endif
-// #ifdef CONFIG_VTX
-//         case X86_MappingEPT:
-//             return performX86EPTPageInvocationUnmap(cap, cte);
-// #endif
-//         case X86_MappingNone:
-//             fail("Mapped frame cap was not mapped");
-//             break;
-//         }
-//     }
-
-//     return EXCEPTION_NONE;
-// }
-
-// struct create_mapping_pte_return {
-//     exception_t status;
-//     pte_t pte;
-//     pte_t *ptSlot;
-// };
-// typedef struct create_mapping_pte_return create_mapping_pte_return_t;
-
-// static create_mapping_pte_return_t createSafeMappingEntries_PTE(paddr_t base, word_t vaddr, vm_rights_t vmRights,
-//                                                                 vm_attributes_t attr,
-//                                                                 vspace_root_t *vspace)
-// {
-//     create_mapping_pte_return_t ret;
-//     lookupPTSlot_ret_t          lu_ret;
-
-//     lu_ret = lookupPTSlot(vspace, vaddr);
-//     if (lu_ret.status != EXCEPTION_NONE) {
-//         current_syscall_error.type = seL4_FailedLookup;
-//         current_syscall_error.failedLookupWasSource = false;
-//         ret.status = EXCEPTION_SYSCALL_ERROR;
-//         /* current_lookup_fault will have been set by lookupPTSlot */
-//         return ret;
-//     }
-
-//     ret.pte = makeUserPTE(base, attr, vmRights);
-//     ret.ptSlot = lu_ret.ptSlot;
-//     ret.status = EXCEPTION_NONE;
-//     return ret;
-// }
-
-// struct create_mapping_pde_return {
-//     exception_t status;
-//     pde_t pde;
-//     pde_t *pdSlot;
-// };
-// typedef struct create_mapping_pde_return create_mapping_pde_return_t;
-
-// static create_mapping_pde_return_t createSafeMappingEntries_PDE(paddr_t base, word_t vaddr, vm_rights_t vmRights,
-//                                                                 vm_attributes_t attr,
-//                                                                 vspace_root_t *vspace)
-// {
-//     create_mapping_pde_return_t ret;
-//     lookupPDSlot_ret_t          lu_ret;
-
-//     lu_ret = lookupPDSlot(vspace, vaddr);
-//     if (lu_ret.status != EXCEPTION_NONE) {
-//         current_syscall_error.type = seL4_FailedLookup;
-//         current_syscall_error.failedLookupWasSource = false;
-//         ret.status = EXCEPTION_SYSCALL_ERROR;
-//         /* current_lookup_fault will have been set by lookupPDSlot */
-//         return ret;
-//     }
-//     ret.pdSlot = lu_ret.pdSlot;
-
-//     /* check for existing page table */
-//     if ((pde_ptr_get_page_size(ret.pdSlot) == pde_pde_pt) &&
-//         (pde_pde_pt_ptr_get_present(ret.pdSlot))) {
-//         current_syscall_error.type = seL4_DeleteFirst;
-//         ret.status = EXCEPTION_SYSCALL_ERROR;
-//         return ret;
-//     }
-
-
-//     ret.pde = makeUserPDELargePage(base, attr, vmRights);
-//     ret.status = EXCEPTION_NONE;
-//     return ret;
-// }
-
-
-// exception_t decodeX86FrameInvocation(
-//     word_t invLabel,
-//     word_t length,
-//     cte_t *cte,
-//     cap_t cap,
-//     word_t *buffer
-// )
-// {
-//     switch (invLabel) {
-//     case X86PageMap: { /* Map */
-//         word_t          vaddr;
-//         word_t          vtop;
-//         word_t          w_rightsMask;
-//         paddr_t         paddr;
-//         cap_t           vspaceCap;
-//         vspace_root_t  *vspace;
-//         vm_rights_t     capVMRights;
-//         vm_rights_t     vmRights;
-//         vm_attributes_t vmAttr;
-//         vm_page_size_t  frameSize;
-//         asid_t          asid;
-
-//         if (length < 3 || current_extra_caps.excaprefs[0] == NULL) {
-//             current_syscall_error.type = seL4_TruncatedMessage;
-
-//             return EXCEPTION_SYSCALL_ERROR;
-//         }
-
-//         frameSize = cap_frame_cap_get_capFSize(cap);
-//         vaddr = getSyscallArg(0, buffer);
-//         w_rightsMask = getSyscallArg(1, buffer);
-//         vmAttr = vmAttributesFromWord(getSyscallArg(2, buffer));
-//         vspaceCap = current_extra_caps.excaprefs[0]->cap;
-
-//         capVMRights = cap_frame_cap_get_capFVMRights(cap);
-
-//         if (!isValidNativeRoot(vspaceCap)) {
-//             userError("X86FrameMap: Attempting to map frame into invalid page directory cap.");
-//             current_syscall_error.type = seL4_InvalidCapability;
-//             current_syscall_error.invalidCapNumber = 1;
-
-//             return EXCEPTION_SYSCALL_ERROR;
-//         }
-//         vspace = (vspace_root_t *)pptr_of_cap(vspaceCap);
-//         asid = cap_get_capMappedASID(vspaceCap);
-
-//         if (cap_frame_cap_get_capFMappedASID(cap) != asidInvalid) {
-//             if (cap_frame_cap_get_capFMappedASID(cap) != asid) {
-//                 current_syscall_error.type = seL4_InvalidCapability;
-//                 current_syscall_error.invalidCapNumber = 1;
-
-//                 return EXCEPTION_SYSCALL_ERROR;
-//             }
-
-//             if (cap_frame_cap_get_capFMapType(cap) != X86_MappingVSpace) {
-//                 userError("X86Frame: Attempting to remap frame with different mapping type");
-//                 current_syscall_error.type = seL4_IllegalOperation;
-
-//                 return EXCEPTION_SYSCALL_ERROR;
-//             }
-
-//             if (cap_frame_cap_get_capFMappedAddress(cap) != vaddr) {
-//                 userError("X86Frame: Attempting to map frame into multiple addresses");
-//                 current_syscall_error.type = seL4_InvalidArgument;
-//                 current_syscall_error.invalidArgumentNumber = 0;
-
-//                 return EXCEPTION_SYSCALL_ERROR;
-//             }
-//         } else {
-//             vtop = vaddr + BIT(pageBitsForSize(frameSize));
-
-//             /* check vaddr and vtop against USER_TOP to catch case where vaddr + frame_size wrapped around */
-//             if (vaddr > USER_TOP || vtop > USER_TOP) {
-//                 userError("X86Frame: Mapping address too high.");
-//                 current_syscall_error.type = seL4_InvalidArgument;
-//                 current_syscall_error.invalidArgumentNumber = 0;
-
-//                 return EXCEPTION_SYSCALL_ERROR;
-//             }
-//         }
-
-//         {
-//             findVSpaceForASID_ret_t find_ret;
-
-//             find_ret = findVSpaceForASID(asid);
-//             if (find_ret.status != EXCEPTION_NONE) {
-//                 current_syscall_error.type = seL4_FailedLookup;
-//                 current_syscall_error.failedLookupWasSource = false;
-
-//                 return EXCEPTION_SYSCALL_ERROR;
-//             }
-
-//             if (find_ret.vspace_root != vspace) {
-//                 current_syscall_error.type = seL4_InvalidCapability;
-//                 current_syscall_error.invalidCapNumber = 1;
-
-//                 return EXCEPTION_SYSCALL_ERROR;
-//             }
-//         }
-
-//         vmRights = maskVMRights(capVMRights, rightsFromWord(w_rightsMask));
-
-//         if (!checkVPAlignment(frameSize, vaddr)) {
-//             current_syscall_error.type = seL4_AlignmentError;
-
-//             return EXCEPTION_SYSCALL_ERROR;
-//         }
-
-//         paddr = pptr_to_paddr((void *)cap_frame_cap_get_capFBasePtr(cap));
-
-//         cap = cap_frame_cap_set_capFMappedASID(cap, asid);
-//         cap = cap_frame_cap_set_capFMappedAddress(cap, vaddr);
-//         cap = cap_frame_cap_set_capFMapType(cap, X86_MappingVSpace);
-
-//         switch (frameSize) {
-//         /* PTE mappings */
-//         case X86_SmallPage: {
-//             create_mapping_pte_return_t map_ret;
-
-//             map_ret = createSafeMappingEntries_PTE(paddr, vaddr, vmRights, vmAttr, vspace);
-//             if (map_ret.status != EXCEPTION_NONE) {
-//                 return map_ret.status;
-//             }
-
-//             setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
-//             return performX86PageInvocationMapPTE(cap, cte, map_ret.ptSlot, map_ret.pte, vspace);
-//         }
-
-//         /* PDE mappings */
-//         case X86_LargePage: {
-//             create_mapping_pde_return_t map_ret;
-
-//             map_ret = createSafeMappingEntries_PDE(paddr, vaddr, vmRights, vmAttr, vspace);
-//             if (map_ret.status != EXCEPTION_NONE) {
-//                 return map_ret.status;
-//             }
-
-//             setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
-//             return performX86PageInvocationMapPDE(cap, cte, map_ret.pdSlot, map_ret.pde, vspace);
-//         }
-
-//         default: {
-//             return decodeX86ModeMapPage(invLabel, frameSize, cte, cap, vspace, vaddr, paddr, vmRights, vmAttr);
-//         }
-//         }
-
-//         return EXCEPTION_SYSCALL_ERROR;
-//     }
-
-//     case X86PageUnmap: { /* Unmap */
-//         setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
-//         return performX86FrameInvocationUnmap(cap, cte);
-//     }
-
-// #ifdef CONFIG_IOMMU
-//     case X86PageMapIO: { /* MapIO */
-//         return decodeX86IOMapInvocation(length, cte, cap, buffer);
-//     }
-// #endif
-
-// #ifdef CONFIG_VTX
-//     case X86PageMapEPT:
-//         return decodeX86EPTPageMap(invLabel, length, cte, cap, buffer);
-// #endif
-
-//     case X86PageGetAddress: {
-//         /* Return it in the first message register. */
-//         assert(n_msgRegisters >= 1);
-
-//         setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
-//         return performPageGetAddress((void *)cap_frame_cap_get_capFBasePtr(cap));
-//     }
-
-//     default:
-//         current_syscall_error.type = seL4_IllegalOperation;
-
-//         return EXCEPTION_SYSCALL_ERROR;
-//     }
-// }
-
-// static exception_t performX86PageTableInvocationUnmap(cap_t cap, cte_t *ctSlot)
-// {
-
-//     if (cap_page_table_cap_get_capPTIsMapped(cap)) {
-//         pte_t *pt = PTE_PTR(cap_page_table_cap_get_capPTBasePtr(cap));
-//         unmapPageTable(
-//             cap_page_table_cap_get_capPTMappedASID(cap),
-//             cap_page_table_cap_get_capPTMappedAddress(cap),
-//             pt
-//         );
-//         clearMemory((void *)pt, cap_get_capSizeBits(cap));
-//     }
-//     cap_page_table_cap_ptr_set_capPTIsMapped(&(ctSlot->cap), 0);
-
-//     return EXCEPTION_NONE;
-// }
-
-// static exception_t performX86PageTableInvocationMap(cap_t cap, cte_t *ctSlot, pde_t pde, pde_t *pdSlot,
-//                                                     vspace_root_t *root)
-// {
-//     ctSlot->cap = cap;
-//     *pdSlot = pde;
-//     invalidatePageStructureCacheASID(pptr_to_paddr(root), cap_page_table_cap_get_capPTMappedASID(cap),
-//                                      SMP_TERNARY(tlb_bitmap_get(root), 0));
-//     return EXCEPTION_NONE;
-// }
-
-// static exception_t decodeX86PageTableInvocation(
-//     word_t invLabel,
-//     word_t length,
-//     cte_t *cte, cap_t cap,
-//     word_t *buffer
-// )
-// {
-//     word_t          vaddr;
-//     vm_attributes_t attr;
-//     lookupPDSlot_ret_t pdSlot;
-//     cap_t           vspaceCap;
-//     vspace_root_t  *vspace;
-//     pde_t           pde;
-//     paddr_t         paddr;
-//     asid_t          asid;
-
-//     if (invLabel == X86PageTableUnmap) {
-//         if (! isFinalCapability(cte)) {
-//             current_syscall_error.type = seL4_RevokeFirst;
-//             userError("X86PageTable: Cannot unmap if more than one cap exists.");
-//             return EXCEPTION_SYSCALL_ERROR;
-//         }
-//         setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
-//         return performX86PageTableInvocationUnmap(cap, cte);
-//     }
-
-//     if (invLabel != X86PageTableMap) {
-//         userError("X86PageTable: Illegal operation.");
-//         current_syscall_error.type = seL4_IllegalOperation;
-//         return EXCEPTION_SYSCALL_ERROR;
-//     }
-
-//     if (length < 2 || current_extra_caps.excaprefs[0] == NULL) {
-//         userError("X86PageTable: Truncated message.");
-//         current_syscall_error.type = seL4_TruncatedMessage;
-//         return EXCEPTION_SYSCALL_ERROR;
-//     }
-
-//     if (cap_page_table_cap_get_capPTIsMapped(cap)) {
-//         userError("X86PageTable: Page table is already mapped to a page directory.");
-//         current_syscall_error.type =
-//             seL4_InvalidCapability;
-//         current_syscall_error.invalidCapNumber = 0;
-
-//         return EXCEPTION_SYSCALL_ERROR;
-//     }
-
-//     vaddr = getSyscallArg(0, buffer) & (~MASK(PT_INDEX_BITS + PAGE_BITS));
-//     attr = vmAttributesFromWord(getSyscallArg(1, buffer));
-//     vspaceCap = current_extra_caps.excaprefs[0]->cap;
-
-//     if (!isValidNativeRoot(vspaceCap)) {
-//         current_syscall_error.type = seL4_InvalidCapability;
-//         current_syscall_error.invalidCapNumber = 1;
-
-//         return EXCEPTION_SYSCALL_ERROR;
-//     }
-
-//     vspace = (vspace_root_t *)pptr_of_cap(vspaceCap);
-//     asid = cap_get_capMappedASID(vspaceCap);
-
-//     if (vaddr > USER_TOP) {
-//         userError("X86PageTable: Mapping address too high.");
-//         current_syscall_error.type = seL4_InvalidArgument;
-//         current_syscall_error.invalidArgumentNumber = 0;
-
-//         return EXCEPTION_SYSCALL_ERROR;
-//     }
-
-//     {
-//         findVSpaceForASID_ret_t find_ret;
-
-//         find_ret = findVSpaceForASID(asid);
-//         if (find_ret.status != EXCEPTION_NONE) {
-//             current_syscall_error.type = seL4_FailedLookup;
-//             current_syscall_error.failedLookupWasSource = false;
-
-//             return EXCEPTION_SYSCALL_ERROR;
-//         }
-
-//         if (find_ret.vspace_root != vspace) {
-//             current_syscall_error.type = seL4_InvalidCapability;
-//             current_syscall_error.invalidCapNumber = 1;
-
-//             return EXCEPTION_SYSCALL_ERROR;
-//         }
-//     }
-
-//     pdSlot = lookupPDSlot(vspace, vaddr);
-//     if (pdSlot.status != EXCEPTION_NONE) {
-//         current_syscall_error.type = seL4_FailedLookup;
-//         current_syscall_error.failedLookupWasSource = false;
-
-//         return EXCEPTION_SYSCALL_ERROR;
-//     }
-
-//     if (((pde_ptr_get_page_size(pdSlot.pdSlot) == pde_pde_pt) && pde_pde_pt_ptr_get_present(pdSlot.pdSlot)) ||
-//         ((pde_ptr_get_page_size(pdSlot.pdSlot) == pde_pde_large) && pde_pde_large_ptr_get_present(pdSlot.pdSlot))) {
-//         current_syscall_error.type = seL4_DeleteFirst;
-
-//         return EXCEPTION_SYSCALL_ERROR;
-//     }
-
-//     paddr = pptr_to_paddr(PTE_PTR(cap_page_table_cap_get_capPTBasePtr(cap)));
-//     pde = makeUserPDEPageTable(paddr, attr);
-
-//     cap = cap_page_table_cap_set_capPTIsMapped(cap, 1);
-//     cap = cap_page_table_cap_set_capPTMappedASID(cap, asid);
-//     cap = cap_page_table_cap_set_capPTMappedAddress(cap, vaddr);
-
-//     setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
-//     return performX86PageTableInvocationMap(cap, cte, pde, pdSlot.pdSlot, vspace);
-// }
-
-// exception_t decodeX86MMUInvocation(
-//     word_t invLabel,
-//     word_t length,
-//     cptr_t cptr,
-//     cte_t *cte,
-//     cap_t cap,
-//     word_t *buffer
-// )
-// {
-//     switch (cap_get_capType(cap)) {
-
-//     case cap_frame_cap:
-//         return decodeX86FrameInvocation(invLabel, length, cte, cap, buffer);
-
-//     case cap_page_table_cap:
-//         return decodeX86PageTableInvocation(invLabel, length, cte, cap, buffer);
-
-//     case cap_asid_control_cap: {
-//         word_t     i;
-//         asid_t           asid_base;
-//         word_t           index;
-//         word_t           depth;
-//         cap_t            untyped;
-//         cap_t            root;
-//         cte_t           *parentSlot;
-//         cte_t           *destSlot;
-//         lookupSlot_ret_t lu_ret;
-//         void            *frame;
-//         exception_t      status;
-
-//         if (invLabel != X86ASIDControlMakePool) {
-//             current_syscall_error.type = seL4_IllegalOperation;
-
-//             return EXCEPTION_SYSCALL_ERROR;
-//         }
-
-//         if (length < 2 || current_extra_caps.excaprefs[0] == NULL
-//             || current_extra_caps.excaprefs[1] == NULL) {
-//             current_syscall_error.type = seL4_TruncatedMessage;
-//             return EXCEPTION_SYSCALL_ERROR;
-//         }
-
-//         index = getSyscallArg(0, buffer);
-//         depth = getSyscallArg(1, buffer);
-//         parentSlot = current_extra_caps.excaprefs[0];
-//         untyped = parentSlot->cap;
-//         root = current_extra_caps.excaprefs[1]->cap;
-
-//         /* Find first free pool */
-//         for (i = 0; i < nASIDPools && x86KSASIDTable[i]; i++);
-
-//         if (i == nASIDPools) {
-//             /* no unallocated pool is found */
-//             current_syscall_error.type = seL4_DeleteFirst;
-
-//             return EXCEPTION_SYSCALL_ERROR;
-//         }
-
-//         asid_base = i << asidLowBits;
-
-
-//         if (cap_get_capType(untyped) != cap_untyped_cap ||
-//             cap_untyped_cap_get_capBlockSize(untyped) != seL4_ASIDPoolBits ||
-//             cap_untyped_cap_get_capIsDevice(untyped)) {
-//             current_syscall_error.type = seL4_InvalidCapability;
-//             current_syscall_error.invalidCapNumber = 1;
-
-//             return EXCEPTION_SYSCALL_ERROR;
-//         }
-
-//         status = ensureNoChildren(parentSlot);
-//         if (status != EXCEPTION_NONE) {
-//             return status;
-//         }
-
-//         frame = WORD_PTR(cap_untyped_cap_get_capPtr(untyped));
-
-//         lu_ret = lookupTargetSlot(root, index, depth);
-//         if (lu_ret.status != EXCEPTION_NONE) {
-//             return lu_ret.status;
-//         }
-//         destSlot = lu_ret.slot;
-
-//         status = ensureEmptySlot(destSlot);
-//         if (status != EXCEPTION_NONE) {
-//             return status;
-//         }
-
-//         setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
-//         return performASIDControlInvocation(frame, destSlot, parentSlot, asid_base);
-//     }
-
-//     case cap_asid_pool_cap: {
-//         cap_t        vspaceCap;
-//         cte_t       *vspaceCapSlot;
-//         asid_pool_t *pool;
-//         word_t i;
-//         asid_t       asid;
-
-//         if (invLabel != X86ASIDPoolAssign) {
-//             current_syscall_error.type = seL4_IllegalOperation;
-
-//             return EXCEPTION_SYSCALL_ERROR;
-//         }
-//         if (current_extra_caps.excaprefs[0] == NULL) {
-//             current_syscall_error.type = seL4_TruncatedMessage;
-
-//             return EXCEPTION_SYSCALL_ERROR;
-//         }
-
-//         vspaceCapSlot = current_extra_caps.excaprefs[0];
-//         vspaceCap = vspaceCapSlot->cap;
-
-//         if (!(isVTableRoot(vspaceCap) || VTX_TERNARY(cap_get_capType(vspaceCap) == cap_ept_pml4_cap, 0))
-//             || cap_get_capMappedASID(vspaceCap) != asidInvalid) {
-//             userError("X86ASIDPool: Invalid vspace root.");
-//             current_syscall_error.type = seL4_InvalidCapability;
-//             current_syscall_error.invalidCapNumber = 1;
-
-//             return EXCEPTION_SYSCALL_ERROR;
-//         }
-
-//         pool = x86KSASIDTable[cap_asid_pool_cap_get_capASIDBase(cap) >> asidLowBits];
-//         if (!pool) {
-//             current_syscall_error.type = seL4_FailedLookup;
-//             current_syscall_error.failedLookupWasSource = false;
-//             current_lookup_fault = lookup_fault_invalid_root_new();
-//             return EXCEPTION_SYSCALL_ERROR;
-//         }
-
-//         if (pool != ASID_POOL_PTR(cap_asid_pool_cap_get_capASIDPool(cap))) {
-//             current_syscall_error.type = seL4_InvalidCapability;
-//             current_syscall_error.invalidCapNumber = 0;
-//             return EXCEPTION_SYSCALL_ERROR;
-//         }
-
-//         /* Find first free ASID */
-//         asid = cap_asid_pool_cap_get_capASIDBase(cap);
-//         for (i = 0; i < BIT(asidLowBits) && (asid + i == 0
-//                                              || asid_map_get_type(pool->array[i]) != asid_map_asid_map_none); i++);
-
-//         if (i == BIT(asidLowBits)) {
-//             current_syscall_error.type = seL4_DeleteFirst;
-
-//             return EXCEPTION_SYSCALL_ERROR;
-//         }
-
-//         asid += i;
-
-//         setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
-//         return performASIDPoolInvocation(asid, pool, vspaceCapSlot);
-//     }
-
-//     default:
-//         return decodeX86ModeMMUInvocation(invLabel, length, cptr, cte, cap, buffer);
-//     }
-// }
+BOOT_CODE void init_syscall_msrs(void) {
+  // TODO(Jiawei): for the emulation do nothing here.
+  // x86_wrmsr(IA32_LSTAR_MSR, (uint64_t)&handle_fastsyscall);
+  // mask bit 9 in the kernel (which is the interrupt enable bit)
+  // also mask bit 8, which is the Trap Flag, to prevent the kernel
+  // from single stepping
+  // x86_wrmsr(IA32_FMASK_MSR, FLAGS_TF | FLAGS_IF);
+  // x86_wrmsr(IA32_STAR_MSR, ((uint64_t)SEL_CS_0 << 32) | ((uint64_t)SEL_CS_3 << 48));
+}
+
+BOOT_CODE void init_gdt(gdt_entry_t *gdt, tss_t *tss) {
+
+  uint64_t tss_base = (uint64_t)tss;
+  gdt_tss_t gdt_tss;
+
+  gdt[GDT_NULL] = gdt_entry_gdt_null_new();
+
+  gdt[GDT_CS_0] = gdt_entry_gdt_code_new(0,     /* base high */
+                                         1,     /* granularity */
+                                         0,     /* operation size, must be 0 when 64-bit is set */
+                                         1,     /* long mode */
+                                         0,     /* avl */
+                                         0xf,   /* limit high */
+                                         1,     /* present */
+                                         0,     /* dpl */
+                                         1,     /* always 1 for segment */
+                                         0,     /* base middle */
+                                         0,     /* base low */
+                                         0xffff /* limit low */
+  );
+
+  gdt[GDT_DS_0] = gdt_entry_gdt_data_new(0,     /* base high */
+                                         1,     /* granularity */
+                                         1,     /* operation size */
+                                         0,     /* avl */
+                                         0xf,   /* seg limit high */
+                                         1,     /* present */
+                                         0,     /* dpl */
+                                         1,     /* always 1 */
+                                         0,     /* base mid */
+                                         0,     /* base low */
+                                         0xffff /* seg limit low */
+  );
+
+  gdt[GDT_CS_3] = gdt_entry_gdt_code_new(0,     /* base high */
+                                         1,     /* granularity */
+                                         0,     /* operation size, must be 0 when 64-bit is set */
+                                         1,     /* long mode */
+                                         0,     /* avl */
+                                         0xf,   /* limit high */
+                                         1,     /* present */
+                                         3,     /* dpl */
+                                         1,     /* always 1 */
+                                         0,     /* base middle */
+                                         0,     /* base low */
+                                         0xffff /* limit low */
+  );
+
+  gdt[GDT_DS_3] = gdt_entry_gdt_data_new(0, 1, 1, 0, 0xf, 1, 3, 1, 0, 0, 0xffff);
+
+  gdt[GDT_FS] = gdt_entry_gdt_data_new(0, 1, 1, 0, 0xf, 1, 3, 1, 0, 0, 0xffff);
+
+  gdt[GDT_GS] = gdt_entry_gdt_data_new(0, 1, 1, 0, 0xf, 1, 3, 1, 0, 0, 0xffff);
+
+  gdt_tss = gdt_tss_new(tss_base >> 32,                  /* base 63 - 32 */
+                        (tss_base & 0xff000000UL) >> 24, /* base 31 - 24 */
+                        1,                               /* granularity */
+                        0,                               /* avl */
+                        0,                               /* limit high */
+                        1,                               /* present */
+                        0,                               /* dpl */
+                        9,                               /* desc type */
+                        (tss_base & 0xff0000UL) >> 16,   /* base 23-16 */
+                        (tss_base & 0xffffUL),           /* base 15 - 0 */
+                        sizeof(tss_io_t) - 1);
+
+  gdt[GDT_TSS].words[0] = gdt_tss.words[0];
+  gdt[GDT_TSS + 1].words[0] = gdt_tss.words[1];
+}
+
+BOOT_CODE void init_idt_entry(idt_entry_t *idt, interrupt_t interrupt, void (*handler)(void)) {
+  uint64_t handler_addr = (uint64_t)handler;
+  uint64_t dpl = 3;
+
+  if (interrupt < int_trap_min && interrupt != int_software_break_request) {
+    dpl = 0;
+  }
+
+  idt[interrupt] = idt_entry_interrupt_gate_new(handler_addr >> 32, /* offset 63 - 32 */
+                                                ((handler_addr >> 16) & 0xffff), 1, /* present */
+                                                dpl,                                /* dpl */
+                                                1,                                  /* ist */
+                                                SEL_CS_0,               /* segment selector */
+                                                (handler_addr & 0xffff) /* offset 15 - 0 */
+  );
+}
+
+void setVMRoot(tcb_t *tcb) {
+  cap_t threadRoot;
+  asid_t asid;
+  pml4e_t *pml4;
+  findVSpaceForASID_ret_t find_ret;
+  cr3_t cr3;
+
+  threadRoot = TCB_PTR_CTE_PTR(tcb, tcbVTable)->cap;
+
+  if (cap_get_capType(threadRoot) != cap_pml4_cap ||
+      !cap_pml4_cap_get_capPML4IsMapped(threadRoot)) {
+    setCurrentUserVSpaceRoot(kpptr_to_paddr(X86_GLOBAL_VSPACE_ROOT), 0);
+    return;
+  }
+
+  pml4 = PML4E_PTR(cap_pml4_cap_get_capPML4BasePtr(threadRoot));
+  asid = cap_pml4_cap_get_capPML4MappedASID(threadRoot);
+  find_ret = findVSpaceForASID(asid);
+  if (unlikely(find_ret.status != EXCEPTION_NONE || find_ret.vspace_root != pml4)) {
+    setCurrentUserVSpaceRoot(kpptr_to_paddr(X86_GLOBAL_VSPACE_ROOT), 0);
+    return;
+  }
+  cr3 = makeCR3(pptr_to_paddr(pml4), asid);
+  if (getCurrentUserCR3().words[0] != cr3.words[0]) {
+    SMP_COND_STATEMENT(tlb_bitmap_set(pml4, getCurrentCPUIndex());)
+    setCurrentUserCR3(cr3);
+  }
+}
+
+BOOT_CODE void init_dtrs(void) {
+  // TODO(Jiawei): for the emulation do nothing here
+  // gdt_idt_ptr.limit = (sizeof(gdt_entry_t) * GDT_ENTRIES) - 1;
+  // gdt_idt_ptr.base = (uint64_t)x86KSGlobalState[CURRENT_CPU_INDEX()].x86KSgdt;
+
+  /* When we install the gdt it will clobber any value of gs that
+   * we have. Since we might be using it for TLS we can stash
+   * and unstash any gs value using swapgs
+   */
+  // swapgs();
+  // x64_install_gdt(&gdt_idt_ptr);
+  // swapgs();
+
+  // gdt_idt_ptr.limit = (sizeof(idt_entry_t) * (int_max + 1)) - 1;
+  // gdt_idt_ptr.base = (uint64_t)x86KSGlobalState[CURRENT_CPU_INDEX()].x86KSidt;
+  // x64_install_idt(&gdt_idt_ptr);
+
+  // x64_install_ldt(SEL_NULL);
+
+  // x64_install_tss(SEL_TSS);
+}
+
+BOOT_CODE void map_it_frame_cap(cap_t pd_cap, cap_t frame_cap) {
+  pml4e_t *pml4 = PML4_PTR(pptr_of_cap(pd_cap));
+  pdpte_t *pdpt;
+  pde_t *pd;
+  pte_t *pt;
+  vptr_t vptr = cap_frame_cap_get_capFMappedAddress(frame_cap);
+  void *pptr = (void *)cap_frame_cap_get_capFBasePtr(frame_cap);
+
+  assert(cap_frame_cap_get_capFMapType(frame_cap) == X86_MappingVSpace);
+  assert(cap_frame_cap_get_capFMappedASID(frame_cap) != asidInvalid);
+  pml4 += GET_PML4_INDEX(vptr);
+  assert(pml4e_ptr_get_present(pml4));
+  pdpt = paddr_to_pptr(pml4e_ptr_get_pdpt_base_address(pml4));
+  pdpt += GET_PDPT_INDEX(vptr);
+  assert(pdpte_pdpte_pd_ptr_get_present(pdpt));
+  pd = paddr_to_pptr(pdpte_pdpte_pd_ptr_get_pd_base_address(pdpt));
+  pd += GET_PD_INDEX(vptr);
+  assert(pde_pde_pt_ptr_get_present(pd));
+  pt = paddr_to_pptr(pde_pde_pt_ptr_get_pt_base_address(pd));
+  *(pt + GET_PT_INDEX(vptr)) = pte_new(0,                   /* xd                   */
+                                       pptr_to_paddr(pptr), /* page_base_address    */
+                                       0,                   /* global               */
+                                       0,                   /* pat                  */
+                                       0,                   /* dirty                */
+                                       0,                   /* accessed             */
+                                       0,                   /* cache_disabled       */
+                                       0,                   /* write_through        */
+                                       1,                   /* super_user           */
+                                       1,                   /* read_write           */
+                                       1                    /* present              */
+  );
+}
+
+static BOOT_CODE void map_it_pdpt_cap(cap_t vspace_cap, cap_t pdpt_cap) {
+  pml4e_t *pml4 = PML4_PTR(pptr_of_cap(vspace_cap));
+  pdpte_t *pdpt = PDPT_PTR(cap_pdpt_cap_get_capPDPTBasePtr(pdpt_cap));
+  vptr_t vptr = cap_pdpt_cap_get_capPDPTMappedAddress(pdpt_cap);
+
+  assert(cap_pdpt_cap_get_capPDPTIsMapped(pdpt_cap));
+  *(pml4 + GET_PML4_INDEX(vptr)) = pml4e_new(0,                   /* xd                   */
+                                             pptr_to_paddr(pdpt), /* pdpt_base_address    */
+                                             0,                   /* accessed             */
+                                             0,                   /* cache_disabled       */
+                                             0,                   /* write_through        */
+                                             1,                   /* super_user           */
+                                             1,                   /* read_write           */
+                                             1                    /* present              */
+  );
+}
+
+BOOT_CODE void map_it_pd_cap(cap_t vspace_cap, cap_t pd_cap) {
+  pml4e_t *pml4 = PML4_PTR(pptr_of_cap(vspace_cap));
+  pdpte_t *pdpt;
+  pde_t *pd = PD_PTR(cap_page_directory_cap_get_capPDBasePtr(pd_cap));
+  vptr_t vptr = cap_page_directory_cap_get_capPDMappedAddress(pd_cap);
+
+  assert(cap_page_directory_cap_get_capPDIsMapped(pd_cap));
+  pml4 += GET_PML4_INDEX(vptr);
+  assert(pml4e_ptr_get_present(pml4));
+  pdpt = paddr_to_pptr(pml4e_ptr_get_pdpt_base_address(pml4));
+  *(pdpt + GET_PDPT_INDEX(vptr)) = pdpte_pdpte_pd_new(0,                 /* xd                   */
+                                                      pptr_to_paddr(pd), /* pd_base_address      */
+                                                      0,                 /* accessed             */
+                                                      0,                 /* cache_disabled       */
+                                                      0,                 /* write_through        */
+                                                      1,                 /* super_user           */
+                                                      1,                 /* read_write           */
+                                                      1                  /* present              */
+  );
+}
+
+BOOT_CODE void map_it_pt_cap(cap_t vspace_cap, cap_t pt_cap) {
+  pml4e_t *pml4 = PML4_PTR(pptr_of_cap(vspace_cap));
+  pdpte_t *pdpt;
+  pde_t *pd;
+  pte_t *pt = PT_PTR(cap_page_table_cap_get_capPTBasePtr(pt_cap));
+  vptr_t vptr = cap_page_table_cap_get_capPTMappedAddress(pt_cap);
+
+  assert(cap_page_table_cap_get_capPTIsMapped(pt_cap));
+  pml4 += GET_PML4_INDEX(vptr);
+  assert(pml4e_ptr_get_present(pml4));
+  pdpt = paddr_to_pptr(pml4e_ptr_get_pdpt_base_address(pml4));
+  pdpt += GET_PDPT_INDEX(vptr);
+  assert(pdpte_pdpte_pd_ptr_get_present(pdpt));
+  pd = paddr_to_pptr(pdpte_pdpte_pd_ptr_get_pd_base_address(pdpt));
+  *(pd + GET_PD_INDEX(vptr)) = pde_pde_pt_new(0,                 /* xd                   */
+                                              pptr_to_paddr(pt), /* pt_base_address      */
+                                              0,                 /* accessed             */
+                                              0,                 /* cache_disabled       */
+                                              0,                 /* write_through        */
+                                              1,                 /* super_user           */
+                                              1,                 /* read_write           */
+                                              1                  /* present              */
+  );
+}
+
+BOOT_CODE void *map_temp_boot_page(void *entry, uint32_t large_pages) {
+  /* this function is for legacy 32-bit systems where the ACPI tables might
+   * collide with the kernel window. Here we just assert that the table is
+   * in fact in the lower 4GiB region (which is already 1-to-1 mapped) and
+   * continue */
+  assert((word_t)entry < BIT(32));
+  return entry;
+}
+
+static BOOT_CODE cap_t create_it_pdpt_cap(cap_t vspace_cap, pptr_t pptr, vptr_t vptr, asid_t asid) {
+  cap_t cap;
+  cap = cap_pdpt_cap_new(asid, /* capPDPTMappedASID    */
+                         pptr, /* capPDPTBasePtr       */
+                         1,    /* capPDPTIsMapped      */
+                         vptr  /* capPDPTMappedAddress */
+  );
+  map_it_pdpt_cap(vspace_cap, cap);
+  return cap;
+}
+
+static BOOT_CODE cap_t create_it_pd_cap(cap_t vspace_cap, pptr_t pptr, vptr_t vptr, asid_t asid) {
+  cap_t cap;
+  cap = cap_page_directory_cap_new(asid, /* capPDMappedASID      */
+                                   pptr, /* capPDBasePtr         */
+                                   1,    /* capPDIsMapped        */
+                                   vptr  /* capPDMappedAddress   */
+  );
+  map_it_pd_cap(vspace_cap, cap);
+  return cap;
+}
+
+static BOOT_CODE cap_t create_it_pt_cap(cap_t vspace_cap, pptr_t pptr, vptr_t vptr, asid_t asid) {
+  cap_t cap;
+  cap = cap_page_table_cap_new(asid, /* capPTMappedASID      */
+                               pptr, /* capPTBasePtr         */
+                               1,    /* capPTIsMapped        */
+                               vptr  /* capPTMappedAddress   */
+  );
+  map_it_pt_cap(vspace_cap, cap);
+  return cap;
+}
+
+BOOT_CODE word_t arch_get_n_paging(v_region_t it_v_reg) {
+  word_t n = get_n_paging(it_v_reg, PD_INDEX_OFFSET);
+  n += get_n_paging(it_v_reg, PDPT_INDEX_OFFSET);
+  n += get_n_paging(it_v_reg, PML4_INDEX_OFFSET);
+#ifdef CONFIG_IOMMU
+  n += vtd_get_n_paging(&boot_state.rmrr_list);
+#endif
+  return n;
+}
+
+BOOT_CODE cap_t create_it_address_space(cap_t root_cnode_cap, v_region_t it_v_reg) {
+  cap_t vspace_cap;
+  vptr_t vptr;
+  seL4_SlotPos slot_pos_before;
+  seL4_SlotPos slot_pos_after;
+
+  slot_pos_before = ndks_boot.slot_pos_cur;
+  copyGlobalMappings(PML4_PTR(rootserver.vspace));
+  vspace_cap = cap_pml4_cap_new(IT_ASID,           /* capPML4MappedASID */
+                                rootserver.vspace, /* capPML4BasePtr   */
+                                1                  /* capPML4IsMapped   */
+  );
+
+  write_slot(SLOT_PTR(pptr_of_cap(root_cnode_cap), seL4_CapInitThreadVSpace), vspace_cap);
+
+  /* Create any PDPTs needed for the user land image */
+  for (vptr = ROUND_DOWN(it_v_reg.start, PML4_INDEX_OFFSET); vptr < it_v_reg.end;
+       vptr += BIT(PML4_INDEX_OFFSET)) {
+    if (!provide_cap(root_cnode_cap,
+                     create_it_pdpt_cap(vspace_cap, it_alloc_paging(), vptr, IT_ASID))) {
+      return cap_null_cap_new();
+    }
+  }
+
+  /* Create any PDs needed for the user land image */
+  for (vptr = ROUND_DOWN(it_v_reg.start, PDPT_INDEX_OFFSET); vptr < it_v_reg.end;
+       vptr += BIT(PDPT_INDEX_OFFSET)) {
+    if (!provide_cap(root_cnode_cap,
+                     create_it_pd_cap(vspace_cap, it_alloc_paging(), vptr, IT_ASID))) {
+      return cap_null_cap_new();
+    }
+  }
+
+  /* Create any PTs needed for the user land image */
+  for (vptr = ROUND_DOWN(it_v_reg.start, PD_INDEX_OFFSET); vptr < it_v_reg.end;
+       vptr += BIT(PD_INDEX_OFFSET)) {
+    if (!provide_cap(root_cnode_cap,
+                     create_it_pt_cap(vspace_cap, it_alloc_paging(), vptr, IT_ASID))) {
+      return cap_null_cap_new();
+    }
+  }
+
+  slot_pos_after = ndks_boot.slot_pos_cur;
+  ndks_boot.bi_frame->userImagePaging = (seL4_SlotRegion){slot_pos_before, slot_pos_after};
+  return vspace_cap;
+}
+
+void copyGlobalMappings(vspace_root_t *new_vspace) {
+  unsigned long i;
+  pml4e_t *vspace = (pml4e_t *)new_vspace;
+
+  /* Copy from the tlbbitmap_pptr so that we copy the default entries of the
+   * tlb bitmap (if it exists). If it doesn't exist then this loop
+   * will be equivalent to copying from PPTR_BASE
+   */
+  for (i = GET_PML4_INDEX(TLBBITMAP_PPTR); i < BIT(PML4_INDEX_BITS); i++) {
+    vspace[i] = X86_GLOBAL_VSPACE_ROOT[i];
+  }
+}
+
+static BOOT_CODE cap_t create_it_frame_cap(pptr_t pptr, vptr_t vptr, asid_t asid, bool_t use_large,
+                                           seL4_Word map_type) {
+  vm_page_size_t frame_size;
+
+  if (use_large) {
+    frame_size = X86_LargePage;
+  } else {
+    frame_size = X86_SmallPage;
+  }
+
+  return cap_frame_cap_new(asid,                          /* capFMappedASID     */
+                           pptr,                          /* capFBasePtr        */
+                           frame_size,                    /* capFSize           */
+                           map_type,                      /* capFMapType        */
+                           vptr,                          /* capFMappedAddress  */
+                           wordFromVMRights(VMReadWrite), /* capFVMRights       */
+                           0                              /* capFIsDevice       */
+  );
+}
+
+BOOT_CODE cap_t create_unmapped_it_frame_cap(pptr_t pptr, bool_t use_large) {
+  return create_it_frame_cap(pptr, 0, asidInvalid, use_large, X86_MappingNone);
+}
+
+BOOT_CODE cap_t create_mapped_it_frame_cap(cap_t vspace_cap, pptr_t pptr, vptr_t vptr, asid_t asid,
+                                           bool_t use_large, bool_t executable UNUSED) {
+  cap_t cap = create_it_frame_cap(pptr, vptr, asid, use_large, X86_MappingVSpace);
+  map_it_frame_cap(vspace_cap, cap);
+  return cap;
+}
+
+/* ====================== BOOT CODE FINISHES HERE ======================== */
+
+exception_t performASIDPoolInvocation(asid_t asid, asid_pool_t *poolPtr, cte_t *vspaceCapSlot) {
+  asid_map_t asid_map;
+#ifdef CONFIG_VTX
+  if (cap_get_capType(vspaceCapSlot->cap) == cap_ept_pml4_cap) {
+    cap_ept_pml4_cap_ptr_set_capPML4MappedASID(&vspaceCapSlot->cap, asid);
+    cap_ept_pml4_cap_ptr_set_capPML4IsMapped(&vspaceCapSlot->cap, 1);
+    asid_map = asid_map_asid_map_ept_new(cap_ept_pml4_cap_get_capPML4BasePtr(vspaceCapSlot->cap));
+  } else
+#endif
+  {
+    assert(cap_get_capType(vspaceCapSlot->cap) == cap_pml4_cap);
+    cap_pml4_cap_ptr_set_capPML4MappedASID(&vspaceCapSlot->cap, asid);
+    cap_pml4_cap_ptr_set_capPML4IsMapped(&vspaceCapSlot->cap, 1);
+    asid_map = asid_map_asid_map_vspace_new(cap_pml4_cap_get_capPML4BasePtr(vspaceCapSlot->cap));
+  }
+  poolPtr->array[asid & MASK(asidLowBits)] = asid_map;
+  return EXCEPTION_NONE;
+}
+
+bool_t CONST isVTableRoot(cap_t cap) { return cap_get_capType(cap) == cap_pml4_cap; }
+
+bool_t CONST isValidNativeRoot(cap_t cap) {
+  return isVTableRoot(cap) && cap_pml4_cap_get_capPML4IsMapped(cap);
+}
+
+static pml4e_t CONST makeUserPML4E(paddr_t paddr, vm_attributes_t vm_attr) {
+  return pml4e_new(0, paddr, 0, vm_attributes_get_x86PCDBit(vm_attr),
+                   vm_attributes_get_x86PWTBit(vm_attr), 1, 1, 1);
+}
+
+static pml4e_t CONST makeUserPML4EInvalid(void) {
+  return pml4e_new(0, /* xd               */
+                   0, /* pdpt_base_addr   */
+                   0, /* accessed         */
+                   0, /* cache_disabled   */
+                   0, /* write through    */
+                   0, /* super user       */
+                   0, /* read_write       */
+                   0  /* present          */
+  );
+}
+
+static pdpte_t CONST makeUserPDPTEHugePage(paddr_t paddr, vm_attributes_t vm_attr,
+                                           vm_rights_t vm_rights) {
+  return pdpte_pdpte_1g_new(0,                                    /* xd               */
+                            paddr,                                /* physical address */
+                            0,                                    /* PAT              */
+                            0,                                    /* global           */
+                            0,                                    /* dirty            */
+                            0,                                    /* accessed         */
+                            vm_attributes_get_x86PCDBit(vm_attr), /* cache disabled */
+                            vm_attributes_get_x86PWTBit(vm_attr), /* write through  */
+                            SuperUserFromVMRights(vm_rights),     /* super user     */
+                            WritableFromVMRights(vm_rights),      /* read write     */
+                            1                                     /* present        */
+  );
+}
+
+static pdpte_t CONST makeUserPDPTEPageDirectory(paddr_t paddr, vm_attributes_t vm_attr) {
+  return pdpte_pdpte_pd_new(0,                                    /* xd       */
+                            paddr,                                /* paddr    */
+                            0,                                    /* accessed */
+                            vm_attributes_get_x86PCDBit(vm_attr), /* cache disabled */
+                            vm_attributes_get_x86PWTBit(vm_attr), /* write through  */
+                            1,                                    /* super user */
+                            1,                                    /* read write */
+                            1                                     /* present    */
+  );
+}
+
+static pdpte_t CONST makeUserPDPTEInvalid(void) {
+  return pdpte_pdpte_pd_new(0, /* xd               */
+                            0, /* physical address */
+                            0, /* accessed         */
+                            0, /* cache disabled */
+                            0, /* write through  */
+                            0, /* super user     */
+                            0, /* read write     */
+                            0  /* present        */
+  );
+}
+
+pde_t CONST makeUserPDELargePage(paddr_t paddr, vm_attributes_t vm_attr, vm_rights_t vm_rights) {
+  return pde_pde_large_new(0,                                    /* xd                   */
+                           paddr,                                /* page_base_address    */
+                           vm_attributes_get_x86PATBit(vm_attr), /* pat                  */
+                           0,                                    /* global               */
+                           0,                                    /* dirty                */
+                           0,                                    /* accessed             */
+                           vm_attributes_get_x86PCDBit(vm_attr), /* cache_disabled       */
+                           vm_attributes_get_x86PWTBit(vm_attr), /* write_through        */
+                           SuperUserFromVMRights(vm_rights),     /* super_user           */
+                           WritableFromVMRights(vm_rights),      /* read_write           */
+                           1                                     /* present              */
+  );
+}
+
+pde_t CONST makeUserPDEPageTable(paddr_t paddr, vm_attributes_t vm_attr) {
+
+  return pde_pde_pt_new(0,                                    /* xd               */
+                        paddr,                                /* pt_base_address  */
+                        0,                                    /* accessed         */
+                        vm_attributes_get_x86PCDBit(vm_attr), /* cache_disabled   */
+                        vm_attributes_get_x86PWTBit(vm_attr), /* write_through    */
+                        1,                                    /* super_user       */
+                        1,                                    /* read_write       */
+                        1                                     /* present          */
+  );
+}
+
+pde_t CONST makeUserPDEInvalid(void) {
+  /* The bitfield only declares two kinds of PDE entries (page tables or large pages)
+   * and an invalid entry should really be a third type, but we can simulate it by
+   * creating an invalid (present bit 0) entry of either of the defined types */
+  return pde_pde_pt_new(0, /* xd               */
+                        0, /* pt_base_addr     */
+                        0, /* accessed         */
+                        0, /* cache_disabled   */
+                        0, /* write_through    */
+                        0, /* super_user       */
+                        0, /* read_write       */
+                        0  /* present          */
+  );
+}
+
+pte_t CONST makeUserPTE(paddr_t paddr, vm_attributes_t vm_attr, vm_rights_t vm_rights) {
+  return pte_new(0,                                    /* xd                   */
+                 paddr,                                /* page_base_address    */
+                 0,                                    /* global               */
+                 vm_attributes_get_x86PATBit(vm_attr), /* pat                  */
+                 0,                                    /* dirty                */
+                 0,                                    /* accessed             */
+                 vm_attributes_get_x86PCDBit(vm_attr), /* cache_disabled       */
+                 vm_attributes_get_x86PWTBit(vm_attr), /* write_through        */
+                 SuperUserFromVMRights(vm_rights),     /* super_user           */
+                 WritableFromVMRights(vm_rights),      /* read_write           */
+                 1                                     /* present              */
+  );
+}
+
+pte_t CONST makeUserPTEInvalid(void) {
+  return pte_new(0, /* xd                   */
+                 0, /* page_base_address    */
+                 0, /* global               */
+                 0, /* pat                  */
+                 0, /* dirty                */
+                 0, /* accessed             */
+                 0, /* cache_disabled       */
+                 0, /* write_through        */
+                 0, /* super_user           */
+                 0, /* read_write           */
+                 0  /* present              */
+  );
+}
+
+static pml4e_t *lookupPML4Slot(vspace_root_t *pml4, vptr_t vptr) {
+  pml4e_t *pml4e = PML4E_PTR(pml4);
+  word_t pml4Index = GET_PML4_INDEX(vptr);
+  return pml4e + pml4Index;
+}
+
+static lookupPDPTSlot_ret_t lookupPDPTSlot(vspace_root_t *pml4, vptr_t vptr) {
+  pml4e_t *pml4Slot = lookupPML4Slot(pml4, vptr);
+  lookupPDPTSlot_ret_t ret;
+
+  if (!pml4e_ptr_get_present(pml4Slot)) {
+    current_lookup_fault = lookup_fault_missing_capability_new(PML4_INDEX_OFFSET);
+
+    ret.pdptSlot = NULL;
+    ret.status = EXCEPTION_LOOKUP_FAULT;
+    return ret;
+  } else {
+    pdpte_t *pdpt;
+    pdpte_t *pdptSlot;
+    word_t pdptIndex = GET_PDPT_INDEX(vptr);
+    pdpt = paddr_to_pptr(pml4e_ptr_get_pdpt_base_address(pml4Slot));
+    pdptSlot = pdpt + pdptIndex;
+
+    ret.status = EXCEPTION_NONE;
+    ret.pdptSlot = pdptSlot;
+    return ret;
+  }
+}
+
+lookupPDSlot_ret_t lookupPDSlot(vspace_root_t *pml4, vptr_t vptr) {
+  lookupPDPTSlot_ret_t pdptSlot;
+  lookupPDSlot_ret_t ret;
+
+  pdptSlot = lookupPDPTSlot(pml4, vptr);
+
+  if (pdptSlot.status != EXCEPTION_NONE) {
+    ret.pdSlot = NULL;
+    ret.status = pdptSlot.status;
+    return ret;
+  }
+  if ((pdpte_ptr_get_page_size(pdptSlot.pdptSlot) != pdpte_pdpte_pd) ||
+      !pdpte_pdpte_pd_ptr_get_present(pdptSlot.pdptSlot)) {
+    current_lookup_fault = lookup_fault_missing_capability_new(PDPT_INDEX_OFFSET);
+
+    ret.pdSlot = NULL;
+    ret.status = EXCEPTION_LOOKUP_FAULT;
+    return ret;
+  } else {
+    pde_t *pd;
+    pde_t *pdSlot;
+    word_t pdIndex = GET_PD_INDEX(vptr);
+    pd = paddr_to_pptr(pdpte_pdpte_pd_ptr_get_pd_base_address(pdptSlot.pdptSlot));
+    pdSlot = pd + pdIndex;
+
+    ret.status = EXCEPTION_NONE;
+    ret.pdSlot = pdSlot;
+    return ret;
+  }
+}
+
+static void flushPD(vspace_root_t *vspace, word_t vptr, pde_t *pd, asid_t asid) {
+  /* clearing the entire PCID vs flushing the virtual addresses
+   * one by one using invplg.
+   * choose the easy way, invalidate the PCID
+   */
+  invalidateASID(vspace, asid, SMP_TERNARY(tlb_bitmap_get(vspace), 0));
+}
+
+static void flushPDPT(vspace_root_t *vspace, word_t vptr, pdpte_t *pdpt, asid_t asid) {
+  /* similar here */
+  invalidateASID(vspace, asid, SMP_TERNARY(tlb_bitmap_get(vspace), 0));
+  return;
+}
+
+void hwASIDInvalidate(asid_t asid, vspace_root_t *vspace) {
+  invalidateASID(vspace, asid, SMP_TERNARY(tlb_bitmap_get(vspace), 0));
+}
+
+void unmapPageDirectory(asid_t asid, vptr_t vaddr, pde_t *pd) {
+  findVSpaceForASID_ret_t find_ret;
+  lookupPDPTSlot_ret_t lu_ret;
+
+  find_ret = findVSpaceForASID(asid);
+  if (find_ret.status != EXCEPTION_NONE) {
+    return;
+  }
+
+  lu_ret = lookupPDPTSlot(find_ret.vspace_root, vaddr);
+  if (lu_ret.status != EXCEPTION_NONE) {
+    return;
+  }
+
+  /* check if the PDPT has the PD */
+  if (!(pdpte_ptr_get_page_size(lu_ret.pdptSlot) == pdpte_pdpte_pd &&
+        pdpte_pdpte_pd_ptr_get_present(lu_ret.pdptSlot) &&
+        (pdpte_pdpte_pd_ptr_get_pd_base_address(lu_ret.pdptSlot) == pptr_to_paddr(pd)))) {
+    return;
+  }
+
+  flushPD(find_ret.vspace_root, vaddr, pd, asid);
+
+  *lu_ret.pdptSlot = makeUserPDPTEInvalid();
+
+  invalidatePageStructureCacheASID(pptr_to_paddr(find_ret.vspace_root), asid,
+                                   SMP_TERNARY(tlb_bitmap_get(find_ret.vspace_root), 0));
+}
+
+static exception_t performX64PageDirectoryInvocationUnmap(cap_t cap, cte_t *ctSlot) {
+
+  if (cap_page_directory_cap_get_capPDIsMapped(cap)) {
+    pde_t *pd = PDE_PTR(cap_page_directory_cap_get_capPDBasePtr(cap));
+    unmapPageDirectory(cap_page_directory_cap_get_capPDMappedASID(cap),
+                       cap_page_directory_cap_get_capPDMappedAddress(cap), pd);
+    clearMemory((void *)pd, cap_get_capSizeBits(cap));
+  }
+
+  cap_page_directory_cap_ptr_set_capPDIsMapped(&(ctSlot->cap), 0);
+
+  return EXCEPTION_NONE;
+}
+
+static exception_t performX64PageDirectoryInvocationMap(cap_t cap, cte_t *ctSlot, pdpte_t pdpte,
+                                                        pdpte_t *pdptSlot, vspace_root_t *vspace) {
+  ctSlot->cap = cap;
+  *pdptSlot = pdpte;
+  invalidatePageStructureCacheASID(pptr_to_paddr(vspace),
+                                   cap_page_directory_cap_get_capPDMappedASID(cap),
+                                   SMP_TERNARY(tlb_bitmap_get(vspace), 0));
+  return EXCEPTION_NONE;
+}
+
+static exception_t decodeX64PageDirectoryInvocation(word_t label, word_t length, cte_t *cte,
+                                                    cap_t cap, word_t *buffer) {
+  word_t vaddr;
+  vm_attributes_t vm_attr;
+  cap_t vspaceCap;
+  vspace_root_t *vspace;
+  pdpte_t pdpte;
+  paddr_t paddr;
+  asid_t asid;
+  lookupPDPTSlot_ret_t pdptSlot;
+
+  if (label == X86PageDirectoryUnmap) {
+    if (!isFinalCapability(cte)) {
+      current_syscall_error.type = seL4_RevokeFirst;
+      userError("X86PageDirectory: Cannot unmap if more than one cap exist.");
+      return EXCEPTION_SYSCALL_ERROR;
+    }
+    setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
+
+    return performX64PageDirectoryInvocationUnmap(cap, cte);
+  }
+
+  if (label != X86PageDirectoryMap) {
+    userError("X64Directory: Illegal operation.");
+    current_syscall_error.type = seL4_IllegalOperation;
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  if (length < 2 || current_extra_caps.excaprefs[0] == NULL) {
+    userError("X64PageDirectory: Truncated message.");
+    current_syscall_error.type = seL4_TruncatedMessage;
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  if (cap_page_directory_cap_get_capPDIsMapped(cap)) {
+    userError("X64PageDirectory: PD is already mapped to a PML4.");
+    current_syscall_error.type = seL4_InvalidCapability;
+    current_syscall_error.invalidCapNumber = 0;
+
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  vaddr = getSyscallArg(0, buffer) & (~MASK(PDPT_INDEX_OFFSET));
+  vm_attr = vmAttributesFromWord(getSyscallArg(1, buffer));
+  vspaceCap = current_extra_caps.excaprefs[0]->cap;
+
+  if (!isValidNativeRoot(vspaceCap)) {
+    current_syscall_error.type = seL4_InvalidCapability;
+    current_syscall_error.invalidCapNumber = 1;
+
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  vspace = (vspace_root_t *)pptr_of_cap(vspaceCap);
+  asid = cap_get_capMappedASID(vspaceCap);
+
+  if (vaddr > USER_TOP) {
+    userError("X64PageDirectory: Mapping address too high.");
+    current_syscall_error.type = seL4_InvalidArgument;
+    current_syscall_error.invalidArgumentNumber = 0;
+
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  findVSpaceForASID_ret_t find_ret;
+
+  find_ret = findVSpaceForASID(asid);
+  if (find_ret.status != EXCEPTION_NONE) {
+    current_syscall_error.type = seL4_FailedLookup;
+    current_syscall_error.failedLookupWasSource = false;
+
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  if (find_ret.vspace_root != vspace) {
+    current_syscall_error.type = seL4_InvalidCapability;
+    current_syscall_error.invalidCapNumber = 1;
+
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  pdptSlot = lookupPDPTSlot(vspace, vaddr);
+  if (pdptSlot.status != EXCEPTION_NONE) {
+    current_syscall_error.type = seL4_FailedLookup;
+    current_syscall_error.failedLookupWasSource = false;
+
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  if ((pdpte_ptr_get_page_size(pdptSlot.pdptSlot) == pdpte_pdpte_pd &&
+       pdpte_pdpte_pd_ptr_get_present(pdptSlot.pdptSlot)) ||
+      (pdpte_ptr_get_page_size(pdptSlot.pdptSlot) == pdpte_pdpte_1g &&
+       pdpte_pdpte_1g_ptr_get_present(pdptSlot.pdptSlot))) {
+    current_syscall_error.type = seL4_DeleteFirst;
+
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  paddr = pptr_to_paddr(PDE_PTR(cap_page_directory_cap_get_capPDBasePtr(cap)));
+  pdpte = makeUserPDPTEPageDirectory(paddr, vm_attr);
+
+  cap = cap_page_directory_cap_set_capPDIsMapped(cap, 1);
+  cap = cap_page_directory_cap_set_capPDMappedASID(cap, asid);
+  cap = cap_page_directory_cap_set_capPDMappedAddress(cap, vaddr);
+
+  setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
+  return performX64PageDirectoryInvocationMap(cap, cte, pdpte, pdptSlot.pdptSlot, vspace);
+}
+
+// defined in arch/x86/64/kernel/vspace.c
+void unmapPDPT(asid_t asid, vptr_t vaddr, pdpte_t *pdpt);
+
+void unmapPDPT(asid_t asid, vptr_t vaddr, pdpte_t *pdpt) {
+  findVSpaceForASID_ret_t find_ret;
+  pml4e_t *pml4Slot;
+
+  find_ret = findVSpaceForASID(asid);
+  if (find_ret.status != EXCEPTION_NONE) {
+    return;
+  }
+
+  pml4Slot = lookupPML4Slot(find_ret.vspace_root, vaddr);
+
+  /* check if the PML4 has the PDPT */
+  if (!(pml4e_ptr_get_present(pml4Slot) &&
+        pml4e_ptr_get_pdpt_base_address(pml4Slot) == pptr_to_paddr(pdpt))) {
+    return;
+  }
+
+  flushPDPT(find_ret.vspace_root, vaddr, pdpt, asid);
+
+  *pml4Slot = makeUserPML4EInvalid();
+}
+
+static exception_t performX64PDPTInvocationUnmap(cap_t cap, cte_t *ctSlot) {
+  if (cap_pdpt_cap_get_capPDPTIsMapped(cap)) {
+    pdpte_t *pdpt = PDPTE_PTR(cap_pdpt_cap_get_capPDPTBasePtr(cap));
+    unmapPDPT(cap_pdpt_cap_get_capPDPTMappedASID(cap), cap_pdpt_cap_get_capPDPTMappedAddress(cap),
+              pdpt);
+    clearMemory((void *)pdpt, cap_get_capSizeBits(cap));
+  }
+
+  cap_pdpt_cap_ptr_set_capPDPTIsMapped(&(ctSlot->cap), 0);
+
+  return EXCEPTION_NONE;
+}
+
+static exception_t performX64PDPTInvocationMap(cap_t cap, cte_t *ctSlot, pml4e_t pml4e,
+                                               pml4e_t *pml4Slot, vspace_root_t *vspace) {
+  ctSlot->cap = cap;
+  *pml4Slot = pml4e;
+  invalidatePageStructureCacheASID(pptr_to_paddr(vspace), cap_pdpt_cap_get_capPDPTMappedASID(cap),
+                                   SMP_TERNARY(tlb_bitmap_get(vspace), 0));
+
+  return EXCEPTION_NONE;
+}
+
+static exception_t decodeX64PDPTInvocation(word_t label, word_t length, cte_t *cte, cap_t cap,
+                                           word_t *buffer) {
+  word_t vaddr;
+  vm_attributes_t attr;
+  pml4e_t *pml4Slot;
+  cap_t vspaceCap;
+  vspace_root_t *vspace;
+  pml4e_t pml4e;
+  paddr_t paddr;
+  asid_t asid;
+
+  if (label == X86PDPTUnmap) {
+    if (!isFinalCapability(cte)) {
+      current_syscall_error.type = seL4_RevokeFirst;
+      userError("X86PDPT: Cannot unmap if more than one cap exist.");
+      return EXCEPTION_SYSCALL_ERROR;
+    }
+
+    setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
+
+    return performX64PDPTInvocationUnmap(cap, cte);
+  }
+
+  if (label != X86PDPTMap) {
+    userError("X86PDPT: Illegal operation.");
+    current_syscall_error.type = seL4_IllegalOperation;
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  if (length < 2 || current_extra_caps.excaprefs[0] == NULL) {
+    userError("X64PDPT: Truncated message.");
+    current_syscall_error.type = seL4_TruncatedMessage;
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  if (cap_pdpt_cap_get_capPDPTIsMapped(cap)) {
+    userError("X64PDPT: PDPT is already mapped to a PML4.");
+    current_syscall_error.type = seL4_InvalidCapability;
+    current_syscall_error.invalidCapNumber = 0;
+
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  vaddr = getSyscallArg(0, buffer) & (~MASK(PML4_INDEX_OFFSET));
+  attr = vmAttributesFromWord(getSyscallArg(1, buffer));
+  vspaceCap = current_extra_caps.excaprefs[0]->cap;
+
+  if (!isValidNativeRoot(vspaceCap)) {
+    current_syscall_error.type = seL4_InvalidCapability;
+    current_syscall_error.invalidCapNumber = 1;
+
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  vspace = (vspace_root_t *)pptr_of_cap(vspaceCap);
+  asid = cap_get_capMappedASID(vspaceCap);
+
+  if (vaddr > USER_TOP) {
+    userError("X64PDPT: Mapping address too high.");
+    current_syscall_error.type = seL4_InvalidArgument;
+    current_syscall_error.invalidArgumentNumber = 0;
+
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  findVSpaceForASID_ret_t find_ret;
+
+  find_ret = findVSpaceForASID(asid);
+  if (find_ret.status != EXCEPTION_NONE) {
+    current_syscall_error.type = seL4_FailedLookup;
+    current_syscall_error.failedLookupWasSource = false;
+
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  if (find_ret.vspace_root != vspace) {
+    current_syscall_error.type = seL4_InvalidCapability;
+    current_syscall_error.invalidCapNumber = 1;
+
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  pml4Slot = lookupPML4Slot(vspace, vaddr);
+
+  if (pml4e_ptr_get_present(pml4Slot)) {
+    current_syscall_error.type = seL4_DeleteFirst;
+
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  paddr = pptr_to_paddr(PDPTE_PTR((cap_pdpt_cap_get_capPDPTBasePtr(cap))));
+  pml4e = makeUserPML4E(paddr, attr);
+
+  cap = cap_pdpt_cap_set_capPDPTIsMapped(cap, 1);
+  cap = cap_pdpt_cap_set_capPDPTMappedASID(cap, asid);
+  cap = cap_pdpt_cap_set_capPDPTMappedAddress(cap, vaddr);
+
+  setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
+  return performX64PDPTInvocationMap(cap, cte, pml4e, pml4Slot, vspace);
+}
+
+exception_t decodeX86ModeMMUInvocation(word_t label, word_t length, cptr_t cptr, cte_t *cte,
+                                       cap_t cap, word_t *buffer) {
+  switch (cap_get_capType(cap)) {
+
+  case cap_pml4_cap:
+    current_syscall_error.type = seL4_IllegalOperation;
+    return EXCEPTION_SYSCALL_ERROR;
+
+  case cap_pdpt_cap:
+    return decodeX64PDPTInvocation(label, length, cte, cap, buffer);
+
+  case cap_page_directory_cap:
+    return decodeX64PageDirectoryInvocation(label, length, cte, cap, buffer);
+
+  default:
+    fail("Invalid arch cap type");
+  }
+}
+
+bool_t modeUnmapPage(vm_page_size_t page_size, vspace_root_t *vroot, vptr_t vaddr, void *pptr) {
+  if (config_set(CONFIG_HUGE_PAGE) && page_size == X64_HugePage) {
+    pdpte_t *pdpte;
+    lookupPDPTSlot_ret_t pdpt_ret = lookupPDPTSlot(vroot, vaddr);
+    if (pdpt_ret.status != EXCEPTION_NONE) {
+      return false;
+    }
+    pdpte = pdpt_ret.pdptSlot;
+
+    if (!(pdpte_ptr_get_page_size(pdpte) == pdpte_pdpte_1g &&
+          pdpte_pdpte_1g_ptr_get_present(pdpte) &&
+          (pdpte_pdpte_1g_ptr_get_page_base_address(pdpte) == pptr_to_paddr(pptr)))) {
+      return false;
+    }
+
+    *pdpte = makeUserPDPTEInvalid();
+    return true;
+  }
+  fail("Invalid page type");
+  return false;
+}
+
+static exception_t updatePDPTE(asid_t asid, pdpte_t pdpte, pdpte_t *pdptSlot,
+                               vspace_root_t *vspace) {
+  *pdptSlot = pdpte;
+  invalidatePageStructureCacheASID(pptr_to_paddr(vspace), asid,
+                                   SMP_TERNARY(tlb_bitmap_get(vspace), 0));
+  return EXCEPTION_NONE;
+}
+
+static exception_t performX64ModeMap(cap_t cap, cte_t *ctSlot, pdpte_t pdpte, pdpte_t *pdptSlot,
+                                     vspace_root_t *vspace) {
+  ctSlot->cap = cap;
+  return updatePDPTE(cap_frame_cap_get_capFMappedASID(cap), pdpte, pdptSlot, vspace);
+}
+
+struct create_mapping_pdpte_return {
+  exception_t status;
+  pdpte_t pdpte;
+  pdpte_t *pdptSlot;
+};
+typedef struct create_mapping_pdpte_return create_mapping_pdpte_return_t;
+
+static create_mapping_pdpte_return_t createSafeMappingEntries_PDPTE(paddr_t base, word_t vaddr,
+                                                                    vm_rights_t vmRights,
+                                                                    vm_attributes_t attr,
+                                                                    vspace_root_t *vspace) {
+  create_mapping_pdpte_return_t ret;
+  lookupPDPTSlot_ret_t lu_ret;
+
+  lu_ret = lookupPDPTSlot(vspace, vaddr);
+  if (lu_ret.status != EXCEPTION_NONE) {
+    current_syscall_error.type = seL4_FailedLookup;
+    current_syscall_error.failedLookupWasSource = false;
+    ret.status = EXCEPTION_SYSCALL_ERROR;
+    /* current_lookup_fault will have been set by lookupPDSlot */
+    return ret;
+  }
+  ret.pdptSlot = lu_ret.pdptSlot;
+
+  /* check for existing page directory */
+  if ((pdpte_ptr_get_page_size(ret.pdptSlot) == pdpte_pdpte_pd) &&
+      (pdpte_pdpte_pd_ptr_get_present(ret.pdptSlot))) {
+    current_syscall_error.type = seL4_DeleteFirst;
+    ret.status = EXCEPTION_SYSCALL_ERROR;
+    return ret;
+  }
+
+  ret.pdpte = makeUserPDPTEHugePage(base, attr, vmRights);
+  ret.status = EXCEPTION_NONE;
+  return ret;
+}
+
+exception_t decodeX86ModeMapPage(word_t label, vm_page_size_t page_size, cte_t *cte, cap_t cap,
+                                 vspace_root_t *vroot, vptr_t vaddr, paddr_t paddr,
+                                 vm_rights_t vm_rights, vm_attributes_t vm_attr) {
+  if (config_set(CONFIG_HUGE_PAGE) && page_size == X64_HugePage) {
+    create_mapping_pdpte_return_t map_ret;
+
+    map_ret = createSafeMappingEntries_PDPTE(paddr, vaddr, vm_rights, vm_attr, vroot);
+    if (map_ret.status != EXCEPTION_NONE) {
+      return map_ret.status;
+    }
+
+    setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
+
+    switch (label) {
+    case X86PageMap:
+      return performX64ModeMap(cap, cte, map_ret.pdpte, map_ret.pdptSlot, vroot);
+
+    default:
+      current_syscall_error.type = seL4_IllegalOperation;
+      return EXCEPTION_SYSCALL_ERROR;
+    }
+  }
+  fail("Invalid Page type");
+}
+
+#ifdef CONFIG_PRINTING
+typedef struct readWordFromVSpace_ret {
+  exception_t status;
+  word_t value;
+} readWordFromVSpace_ret_t;
+
+static readWordFromVSpace_ret_t readWordFromVSpace(vspace_root_t *vspace, word_t vaddr) {
+  readWordFromVSpace_ret_t ret;
+  lookupPTSlot_ret_t ptSlot;
+  lookupPDSlot_ret_t pdSlot;
+  lookupPDPTSlot_ret_t pdptSlot;
+  paddr_t paddr;
+  word_t offset;
+  pptr_t kernel_vaddr;
+  word_t *value;
+
+  pdptSlot = lookupPDPTSlot(vspace, vaddr);
+  if (pdptSlot.status == EXCEPTION_NONE &&
+      pdpte_ptr_get_page_size(pdptSlot.pdptSlot) == pdpte_pdpte_1g &&
+      pdpte_pdpte_1g_ptr_get_present(pdptSlot.pdptSlot)) {
+
+    paddr = pdpte_pdpte_1g_ptr_get_page_base_address(pdptSlot.pdptSlot);
+    offset = vaddr & MASK(seL4_HugePageBits);
+  } else {
+    pdSlot = lookupPDSlot(vspace, vaddr);
+    if (pdSlot.status == EXCEPTION_NONE &&
+        ((pde_ptr_get_page_size(pdSlot.pdSlot) == pde_pde_large) &&
+         pde_pde_large_ptr_get_present(pdSlot.pdSlot))) {
+
+      paddr = pde_pde_large_ptr_get_page_base_address(pdSlot.pdSlot);
+      offset = vaddr & MASK(seL4_LargePageBits);
+    } else {
+      ptSlot = lookupPTSlot(vspace, vaddr);
+      if (ptSlot.status == EXCEPTION_NONE && pte_ptr_get_present(ptSlot.ptSlot)) {
+        paddr = pte_ptr_get_page_base_address(ptSlot.ptSlot);
+        offset = vaddr & MASK(seL4_PageBits);
+      } else {
+        ret.status = EXCEPTION_LOOKUP_FAULT;
+        return ret;
+      }
+    }
+  }
+
+  kernel_vaddr = (word_t)paddr_to_pptr(paddr);
+  value = (word_t *)(kernel_vaddr + offset);
+  ret.status = EXCEPTION_NONE;
+  ret.value = *value;
+  return ret;
+}
+
+void Arch_userStackTrace(tcb_t *tptr) {
+  cap_t threadRoot;
+  vspace_root_t *vspace_root;
+  word_t sp;
+  int i;
+
+  threadRoot = TCB_PTR_CTE_PTR(tptr, tcbVTable)->cap;
+
+  /* lookup the PD */
+  if (cap_get_capType(threadRoot) != cap_pml4_cap) {
+    printf("Invalid vspace\n");
+    return;
+  }
+
+  vspace_root = (vspace_root_t *)pptr_of_cap(threadRoot);
+
+  sp = getRegister(tptr, RSP);
+  /* check for alignment so we don't have to worry about accessing
+   * words that might be on two different pages */
+  if (!IS_ALIGNED(sp, seL4_WordSizeBits)) {
+    printf("RSP not aligned\n");
+    return;
+  }
+
+  for (i = 0; i < CONFIG_USER_STACK_TRACE_LENGTH; i++) {
+    word_t address = sp + (i * sizeof(word_t));
+    readWordFromVSpace_ret_t result;
+    result = readWordFromVSpace(vspace_root, address);
+    if (result.status == EXCEPTION_NONE) {
+      printf("0x%lx: 0x%lx\n", (long)address, (long)result.value);
+    } else {
+      printf("0x%lx: INVALID\n", (long)address);
+    }
+  }
+}
+#endif /* CONFIG_PRINTING */
+
+#ifdef CONFIG_KERNEL_LOG_BUFFER
+exception_t benchmark_arch_map_logBuffer(word_t frame_cptr) {
+  lookupCapAndSlot_ret_t lu_ret;
+  vm_page_size_t frameSize;
+  pptr_t frame_pptr;
+
+  /* faulting section */
+  lu_ret = lookupCapAndSlot(NODE_STATE(ksCurThread), frame_cptr);
+
+  if (unlikely(lu_ret.status != EXCEPTION_NONE)) {
+    userError("Invalid cap #%lu.", frame_cptr);
+    current_fault = seL4_Fault_CapFault_new(frame_cptr, false);
+
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  if (cap_get_capType(lu_ret.cap) != cap_frame_cap) {
+    userError("Invalid cap. Log buffer should be of a frame cap");
+    current_fault = seL4_Fault_CapFault_new(frame_cptr, false);
+
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  frameSize = cap_frame_cap_get_capFSize(lu_ret.cap);
+
+  if (frameSize != X86_LargePage) {
+    userError("Invalid size for log Buffer. The kernel expects at least 1M log buffer");
+    current_fault = seL4_Fault_CapFault_new(frame_cptr, false);
+
+    return EXCEPTION_SYSCALL_ERROR;
+  }
+
+  frame_pptr = cap_frame_cap_get_capFBasePtr(lu_ret.cap);
+
+  ksUserLogBuffer = pptr_to_paddr((void *)frame_pptr);
+
+  pde_t pde = pde_pde_large_new(0,               /* xd                   */
+                                ksUserLogBuffer, /* page_base_address    */
+                                VMKernelOnly,    /* pat                  */
+                                1,               /* global               */
+                                0,               /* dirty                */
+                                0,               /* accessed             */
+                                0,               /* cache_disabled       */
+                                1,               /* write_through        */
+                                1,               /* super_user           */
+                                1,               /* read_write           */
+                                1                /* present              */
+  );
+
+  /* Stored in the PD slot after the device page table */
+#ifdef CONFIG_HUGE_PAGE
+  x64KSKernelPD[1] = pde;
+#else
+  x64KSKernelPDs[BIT(PDPT_INDEX_BITS) - 1][1] = pde;
+#endif
+  invalidateTranslationAll(MASK(CONFIG_MAX_NUM_NODES));
+
+  return EXCEPTION_NONE;
+}
+#endif /* CONFIG_KERNEL_LOG_BUFFER */

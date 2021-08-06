@@ -7,6 +7,9 @@
 #pragma once
 
 #include <sel4/macros.h>
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <object/structures.h>
+#endif
 /* x86-64 specific object types */
 /* sysexitq (64-bit) user code = cs + 32, user data = cs + 40.
  * sysexit user code = cs + 16, user data = cs + 24, so we need to arrange

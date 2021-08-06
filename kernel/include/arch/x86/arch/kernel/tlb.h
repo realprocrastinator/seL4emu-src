@@ -7,6 +7,9 @@
 #pragma once
 
 #include <arch/smp/ipi_inline.h>
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <emu/emu_assert.h>
+#endif
 
 static inline void invalidatePageStructureCacheASID(paddr_t root, asid_t asid, word_t mask)
 {

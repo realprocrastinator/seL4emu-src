@@ -7,6 +7,9 @@
 #pragma once
 #include <bootinfo.h>
 #include <arch/bootinfo.h>
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <object/objecttype.h>
+#endif
 
 #ifndef CONFIG_ARCH_ARM
 #define MAX_NUM_FREEMEM_REG 16
