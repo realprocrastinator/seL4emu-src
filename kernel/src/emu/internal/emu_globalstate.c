@@ -2,18 +2,33 @@
 #include <emu/emu_globalstate.h>
 #include <machine/registerset.h>
 #include <object/structures.h>
+#include <plat_mode/machine/hardware.h>
 
 // TODO(Jiawei): move to the build system to auto gen based on the configuration
 // #define CONFIG_MAX_SEL4_CLIENTS 2
 
-/*
- *  TODO(Jiawei): change those to reasonable numbers
- *  kernel image info, hard coded here
+/* x86 specific */
+
+/**
+ * Used when virtual addressing is enabled, hence when the PG bit is set in CR0. CR3 enables the
+ * processor to translate linear addresses into physical addresses by locating the page directory
+ * and page tables for the current task. Typically, the upper 20 bits of CR3 become the page
+ * directory base register (PDBR), which stores the physical address of the first page directory
+ * entry. If the PCIDE bit in CR4 is set, the lowest 12 bits are used for the process-context
+ * identifier (PCID).[1]
+ * For the emulation the upper 20 bits points to the emulated physical memory address.
  */
-char ki_boot_end[1] = {0xa0};
-char ki_end[1] = {0xb0};
-char ki_skim_start[1] = {0xc0};
-char ki_skim_end[1] = {0xd0};
+
+// uint32_t seL4emu_g_cr3;
+
+/**
+ * Symbols used by bootcode, for the emulation, we just fake those values
+ * at the moment
+ */
+char *ki_boot_end;
+char *ki_end;
+char *ki_skim_start;
+char *ki_skim_end;
 
 /* Bookkeeping data structure to track all the running seL4 threads on the current host */
 char seL4emu_g_tcbs[CONFIG_MAX_SEL4_CLIENTS][BIT(seL4_TCBBits)] ALIGN(BIT(TCB_SIZE_BITS));

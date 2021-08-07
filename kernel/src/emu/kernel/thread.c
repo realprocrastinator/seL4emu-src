@@ -334,7 +334,8 @@ void doNBRecvFailedTransfer(tcb_t *thread) {
 // }
 
 void schedule(void) {
-  assert(!"Not implemented yet");
+  printf("Calling scheduler! Do nothing at the moment.\n");
+  // assert(!"Not implemented yet");
   // #ifdef CONFIG_KERNEL_MCS
   //     awaken();
   // #endif

@@ -19,6 +19,7 @@
 
 #define SOCKET_NAME "/tmp/uds-test.socket"
 #define BUFFER_SIZE (27 * 8)
+#define ROOT_TASK_PATH "/home/kukuku/UNSW/cs9991/sel4-projects/sel4-emu-stub/hello-world_build/emu-images/hello-world-image-x86_64-pc99-emu"
 
 static void cleanup_onexit() {
   printf("Bye\n");
@@ -98,6 +99,18 @@ static void syscall_loop(int conn_sock) {
 int main() {
   atexit(cleanup_onexit);
 
+  /*
+   * This is a fake memory region emulating the 4GB physical memory for testing
+   * Should be using a file backed mapping later and let use configured teh size.
+   */
+  void *addr = mmap((void *)SEL4_EMU_PMEM_BASE, 4096UL * 1024UL * 1024UL, PROT_READ | PROT_WRITE,
+                    MAP_FIXED | MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+  assert((word_t)addr == SEL4_EMU_PMEM_BASE);
+  if (addr == MAP_FAILED) {
+    perror("mmap");
+    exit(1);
+  }
+
   int connection_socket;
   if (init_ipc_socket(&connection_socket) < 0) {
     exit(EXIT_FAILURE);
@@ -117,9 +130,7 @@ int main() {
       goto cleanup_exit;
     }
   } else if (pid == 0) {
-    execve("/home/kukuku/UNSW/cs9991/sel4-projects/sel4-emu-stub/"
-           "hello-world_build/hello-world",
-           NULL, NULL);
+    execve(ROOT_TASK_PATH, NULL, NULL);
   }
 
   syscall_loop(connection_socket);

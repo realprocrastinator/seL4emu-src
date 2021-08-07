@@ -83,27 +83,33 @@ static inline irq_t getActiveIRQ(void)
 /* Checks for pending IRQ */
 static inline bool_t isIRQPending(void)
 {
-    //TODO(Jiawei): not supported at the moment
-    // if (apic_is_interrupt_pending()) {
-    //     return true;
-    // }
-    assert(!"Not implemented yet");
+#ifndef CONFIG_SEL4_USE_EMULATION
+    if (apic_is_interrupt_pending()) {
+        return true;
+    }
 
     if (config_set(CONFIG_IRQ_PIC) && pic_is_irq_pending()) {
         return true;
     }
 
     return false;
+#else
+    //TODO(Jiawei): not handled at the moment
+    assert(!"Not implemented yet");
+#endif
 }
 
 static inline void ackInterrupt(irq_t irq)
 {
-    assert(!"Not implemented yet");
+#ifndef CONFIG_SEL4_USE_EMULATION
     if (config_set(CONFIG_IRQ_PIC) && irq <= irq_isa_max) {
         pic_ack_active_irq();
     } else {
         apic_ack_active_interrupt();
     }
+#else
+    assert(!"Not implemented yet");
+#endif
 }
 
 static inline void handleSpuriousIRQ(void)

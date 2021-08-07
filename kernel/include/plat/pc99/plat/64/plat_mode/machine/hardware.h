@@ -124,6 +124,7 @@ compile_assert(user_top_tlbbitmap_no_overlap, GET_PML4_INDEX(USER_TOP) != GET_PM
  * paddr_to_kpptr converts physical address to the second small kernel
  * window which locates at the top 2GiB.
  */
+#ifndef CONFIG_SEL4_USE_EMULATION
 static inline void *CONST
 paddr_to_kpptr(paddr_t paddr)
 {
@@ -136,6 +137,28 @@ static inline paddr_t CONST kpptr_to_paddr(void *pptr)
     assert((word_t)pptr >= KERNEL_ELF_BASE);
     return (paddr_t)pptr - KERNEL_ELF_BASE_OFFSET;
 }
+#else
+/**
+ * For the emulation we map an emulated memory as our physical memory,
+ * and this memory area also emulates the 1:1 mapping of the physical
+ * memory in real seL4 kernel window. Hence, we don't need to calculate
+ * the offset at the moment.
+ */
+static inline void *CONST
+paddr_to_kpptr(paddr_t paddr)
+{
+    // assert(paddr < KERNEL_ELF_PADDR_TOP);
+    // return (void *)(paddr + KERNEL_ELF_BASE_OFFSET);
+    return (void *)(paddr);
+}
+
+static inline paddr_t CONST kpptr_to_paddr(void *pptr)
+{ 
+    // assert((word_t)pptr >= KERNEL_ELF_BASE);
+    // return (paddr_t)pptr - KERNEL_ELF_BASE_OFFSET;
+    return (paddr_t)pptr;
+}
+#endif
 
 #endif /* __ASSEMBLER__ */
 

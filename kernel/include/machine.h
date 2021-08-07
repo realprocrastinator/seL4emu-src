@@ -14,6 +14,7 @@
  * kernel via virtual addressing we always use the mapping of the memory
  * into the physical memory window, even if the mapping originally
  * referred to a kernel virtual address. */
+#ifndef CONFIG_SEL4_USE_EMULATION
 static inline void *CONST ptrFromPAddr(paddr_t paddr)
 {
     return (void *)(paddr + PPTR_BASE_OFFSET);
@@ -39,6 +40,34 @@ static inline p_region_t CONST pptr_to_paddr_reg(region_t reg)
         reg.start - PPTR_BASE_OFFSET, reg.end - PPTR_BASE_OFFSET
     };
 }
+#else
+/* For the emulation we directly map an emulated physical memory to the address space. */
+static inline void *CONST ptrFromPAddr(paddr_t paddr)
+{
+    return (void *)paddr;
+}
+
+/* When obtaining a physical address from a reference to any object in
+ * the physical mapping window, this function must be used. */
+static inline paddr_t CONST addrFromPPtr(void *pptr)
+{
+    return (paddr_t)pptr;
+}
+
+static inline region_t CONST paddr_to_pptr_reg(p_region_t p_reg)
+{
+    return (region_t) {
+        p_reg.start, p_reg.end
+    };
+}
+
+static inline p_region_t CONST pptr_to_paddr_reg(region_t reg)
+{
+    return (p_region_t) {
+        reg.start, reg.end
+    };
+}
+#endif
 
 #define paddr_to_pptr ptrFromPAddr
 #define pptr_to_paddr(x) addrFromPPtr(x)

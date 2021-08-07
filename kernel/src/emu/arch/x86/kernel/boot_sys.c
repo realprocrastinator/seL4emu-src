@@ -24,6 +24,7 @@
 #include <sel4/arch/bootinfo_types.h>
 #include <smp/lock.h>
 #include <util.h>
+#include <emu/emu_globalstate.h>
 
 /* addresses defined in linker script */
 /* need a fake array to get the pointer from the linker script */
@@ -37,10 +38,10 @@
 // extern char boot_stack_top[1];
 
 /* locations in kernel image */
-extern char ki_boot_end[1];
-extern char ki_end[1];
-extern char ki_skim_start[1];
-extern char ki_skim_end[1];
+extern char *ki_boot_end;
+extern char *ki_end;
+extern char *ki_skim_start;
+extern char *ki_skim_end;
 
 #ifdef CONFIG_PRINTING
 /* kernel entry point */
@@ -78,22 +79,29 @@ BOOT_CODE static paddr_t find_load_paddr(paddr_t min_paddr, word_t image_size) {
 }
 
 BOOT_CODE static paddr_t load_boot_module(word_t boot_module_start, paddr_t load_paddr) {
+  // TODO(Jiawei): To implement this, parse ELF to get the info
+  printf("Fake load boot module!\n Don't do anything.\n");
+
   v_region_t v_reg;
   word_t entry;
-  Elf_Header_t *elf_file = (Elf_Header_t *)boot_module_start;
 
-  if (!elf_checkFile(elf_file)) {
-    printf("Boot module does not contain a valid ELF image\n");
-    return 0;
-  }
+  v_reg.start = 0x400000, v_reg.end = 0x524000;
+  entry = 0x40111a;
 
-  v_reg = elf_getMemoryBounds(elf_file);
-  entry = elf_file->e_entry;
+  // Elf_Header_t *elf_file = (Elf_Header_t *)boot_module_start;
 
-  if (v_reg.end == 0) {
-    printf("ELF image in boot module does not contain any segments\n");
-    return 0;
-  }
+  // if (!elf_checkFile(elf_file)) {
+  //   printf("Boot module does not contain a valid ELF image\n");
+  //   return 0;
+  // }
+
+  // v_reg = elf_getMemoryBounds(elf_file);
+  // entry = elf_file->e_entry;
+
+  // if (v_reg.end == 0) {
+  //   printf("ELF image in boot module does not contain any segments\n");
+  //   return 0;
+  // }
   v_reg.end = ROUND_UP(v_reg.end, PAGE_BITS);
 
   printf("size=0x%lx v_entry=%p v_start=%p v_end=%p ", v_reg.end - v_reg.start, (void *)entry,
@@ -127,9 +135,9 @@ BOOT_CODE static paddr_t load_boot_module(word_t boot_module_start, paddr_t load
          boot_state.ui_info.p_reg.end);
 
   /* initialise all initial userland memory and load potentially sparse ELF image */
-  memzero((void *)boot_state.ui_info.p_reg.start,
-          boot_state.ui_info.p_reg.end - boot_state.ui_info.p_reg.start);
-  elf_load(elf_file, boot_state.ui_info.pv_offset);
+  // memzero((void *)boot_state.ui_info.p_reg.start,
+  //         boot_state.ui_info.p_reg.end - boot_state.ui_info.p_reg.start);
+  // elf_load(elf_file, boot_state.ui_info.pv_offset);
 
   return load_paddr;
 }
@@ -161,12 +169,12 @@ static BOOT_CODE bool_t try_boot_sys_node(cpu_id_t cpu_id) {
 
   /* reuse boot code/data memory */
   boot_mem_reuse_p_reg.start = KERNEL_ELF_PADDR_BASE;
-  boot_mem_reuse_p_reg.end = kpptr_to_paddr(ki_boot_end);
+  boot_mem_reuse_p_reg.end = kpptr_to_paddr(ki_boot_end) - KERNEL_ELF_BASE_OFFSET;
 
   /* initialise the CPU */
-  if (!init_cpu(config_set(CONFIG_IRQ_IOAPIC) ? 1 : 0)) {
-    return false;
-  }
+  // if (!init_cpu(config_set(CONFIG_IRQ_IOAPIC) ? 1 : 0)) {
+  //   return false;
+  // }
 
   /* initialise NDKS and kernel heap */
   if (!init_sys_state(cpu_id, &boot_state.mem_p_regs, boot_state.ui_info, boot_mem_reuse_p_reg,
@@ -202,6 +210,8 @@ static BOOT_CODE bool_t add_mem_p_regs(p_region_t reg) {
   return reserve_region(reg);
 }
 
+static multiboot_mmap_t fake_mmaps[6];
+
 /*
  * the code relies that the GRUB provides correct information
  * about the actual physical memory regions.
@@ -209,8 +219,23 @@ static BOOT_CODE bool_t add_mem_p_regs(p_region_t reg) {
 static BOOT_CODE bool_t parse_mem_map(uint32_t mmap_length, uint32_t mmap_addr) {
   multiboot_mmap_t *mmap = (multiboot_mmap_t *)((word_t)mmap_addr);
   printf("Parsing GRUB physical memory map\n");
+  // TODO(Jiawei): we need to fake this at the moment
+  if (!mmap) {
+    printf("Parsing fake physical memory map!\n");
+    // FAKE for testing
+    unsigned long offset = SEL4_EMU_PMEM_BASE;
 
-  while ((word_t)mmap < (word_t)(mmap_addr + mmap_length)) {
+    fake_mmaps[0].size = 0x20, fake_mmaps[0].base_addr = 0 + offset, fake_mmaps[0].length = 654336, fake_mmaps[0].type = MULTIBOOT_MMAP_USEABLE_TYPE;
+    fake_mmaps[1].size = 0x20, fake_mmaps[1].base_addr = 654336 + offset,     fake_mmaps[1].length = 1024,      fake_mmaps[1].type = MULTIBOOT_MMAP_RESERVED_TYPE;
+    fake_mmaps[2].size = 0x20, fake_mmaps[2].base_addr = 983040 + offset,     fake_mmaps[2].length = 65536,     fake_mmaps[2].type = MULTIBOOT_MMAP_RESERVED_TYPE;
+    fake_mmaps[3].size = 0x20, fake_mmaps[3].base_addr = 1048576 + offset,    fake_mmaps[3].length = 535691264, fake_mmaps[3].type = MULTIBOOT_MMAP_USEABLE_TYPE;
+    fake_mmaps[4].size = 0x20, fake_mmaps[4].base_addr = 536739840 + offset,  fake_mmaps[4].length = 131072,    fake_mmaps[4].type = MULTIBOOT_MMAP_RESERVED_TYPE;
+    fake_mmaps[5].size = 0x20, fake_mmaps[5].base_addr = 4294705152 + offset, fake_mmaps[5].length = 262144,    fake_mmaps[5].type = MULTIBOOT_MMAP_RESERVED_TYPE;
+    mmap = fake_mmaps;
+  }
+  
+  for (int i = 0; i < 6; ++i) {
+  // while ((word_t)mmap < (word_t)(mmap_addr + mmap_length)) {
     uint64_t mem_start = mmap->base_addr;
     uint64_t mem_length = mmap->length;
     uint32_t type = mmap->type;
@@ -219,7 +244,7 @@ static BOOT_CODE bool_t parse_mem_map(uint32_t mmap_length, uint32_t mmap_addr) 
     } else {
       printf("\tPhysical Memory Region from %lx size %lx type %d\n", (long)mem_start,
              (long)mem_length, type);
-      if (type == MULTIBOOT_MMAP_USEABLE_TYPE && mem_start >= HIGHMEM_PADDR) {
+      if (type == MULTIBOOT_MMAP_USEABLE_TYPE && mem_start >= HIGHMEM_PADDR + SEL4_EMU_PMEM_BASE) {
         if (!add_mem_p_regs((p_region_t){mem_start, mem_start + mem_length})) {
           return false;
         }
@@ -322,8 +347,9 @@ static BOOT_CODE bool_t try_boot_sys(void) {
   p_region_t ui_p_regs;
   paddr_t load_paddr;
 
-  boot_state.ki_p_reg.start = KERNEL_ELF_PADDR_BASE;
-  boot_state.ki_p_reg.end = kpptr_to_paddr(ki_end);
+  // FAKE here to test
+  boot_state.ki_p_reg.start = KERNEL_ELF_PADDR_BASE - KERNEL_ELF_PADDR_BASE;
+  boot_state.ki_p_reg.end = kpptr_to_paddr(ki_end) - KERNEL_ELF_BASE_OFFSET;
 
   // TODO(Jiawei): To implement this
   // if (!x86_cpuid_initialize()) {
@@ -451,7 +477,6 @@ static BOOT_CODE bool_t try_boot_sys(void) {
   printf("ELF-loading userland images from boot modules:\n");
   load_paddr = mods_end_paddr;
 
-  // TODO(Jiawei): To implement this, parse ELF to get the info
   load_paddr = load_boot_module(boot_state.boot_module_start, load_paddr);
   if (!load_paddr) {
     return false;
@@ -463,7 +488,7 @@ static BOOT_CODE bool_t try_boot_sys(void) {
 
   printf("Moving loaded userland images to final location: from=0x%lx to=0x%lx size=0x%lx\n",
          mods_end_paddr, ui_p_regs.start, ui_p_regs.end - ui_p_regs.start);
-  memcpy((void *)ui_p_regs.start, (void *)mods_end_paddr, ui_p_regs.end - ui_p_regs.start);
+  // memcpy((void *)ui_p_regs.start, (void *)mods_end_paddr, ui_p_regs.end - ui_p_regs.start);
 
   /* adjust p_reg and pv_offset to final load address */
   boot_state.ui_info.p_reg.start -= mods_end_paddr - ui_p_regs.start;
@@ -484,16 +509,16 @@ static BOOT_CODE bool_t try_boot_sys(void) {
     return false;
   }
 
-  if (config_set(CONFIG_IRQ_IOAPIC)) {
-    ioapic_init(1, boot_state.cpus, boot_state.num_ioapic);
-  }
+  // if (config_set(CONFIG_IRQ_IOAPIC)) {
+  //   ioapic_init(1, boot_state.cpus, boot_state.num_ioapic);
+  // }
 
   /* initialize BKL before booting up APs */
-  SMP_COND_STATEMENT(clh_lock_init());
-  SMP_COND_STATEMENT(start_boot_aps());
+  // SMP_COND_STATEMENT(clh_lock_init());
+  // SMP_COND_STATEMENT(start_boot_aps());
 
   /* grab BKL before leaving the kernel */
-  NODE_LOCK_SYS;
+  // NODE_LOCK_SYS;
 
   printf("Booting all finished, dropped to user space\n");
 
@@ -502,7 +527,14 @@ static BOOT_CODE bool_t try_boot_sys(void) {
 
 static BOOT_CODE bool_t try_boot_sys_mbi1(multiboot_info_t *mbi) {
   word_t i;
+
+  // TODO(Jiawei): hard coded here for testing
   multiboot_module_t *modules = (multiboot_module_t *)(word_t)mbi->part1.mod_list;
+  if (!modules) {
+    printf("No modules found, fake this!\n");
+    multiboot_module_t module = {.start = 10567680, .end = 11106400, .name = 10563600, .reserved = 0};
+    modules = &module;
+  }
 
   // cmdline_parse((const char *)(word_t)mbi->part1.cmdline, &cmdline_opt);
 
@@ -525,7 +557,7 @@ static BOOT_CODE bool_t try_boot_sys_mbi1(multiboot_info_t *mbi) {
 
   for (i = 0; i < mbi->part1.mod_count; i++) {
     printf("  module #%ld: start=0x%x end=0x%x size=0x%x name='%s'\n", i, modules[i].start,
-           modules[i].end, modules[i].end - modules[i].start, (char *)(long)modules[i].name);
+           modules[i].end, modules[i].end - modules[i].start, "FAKE MODULE");
     if ((sword_t)(modules[i].end - modules[i].start) <= 0) {
       printf("Invalid boot module size! Possible cause: boot module file not found by QEMU\n");
       return false;
@@ -553,8 +585,11 @@ static BOOT_CODE bool_t try_boot_sys_mbi1(multiboot_info_t *mbi) {
              "These extra regions will still be turned into untyped caps.",
              multiboot_mmap_length / sizeof(seL4_X86_mb_mmap_t), SEL4_MULTIBOOT_MAX_MMAP_ENTRIES);
     }
-    memcpy(&boot_state.mb_mmap_info.mmap, (void *)(word_t)mbi->part2.mmap_addr,
+    // FAKE
+    memcpy(&boot_state.mb_mmap_info.mmap, (void *)fake_mmaps,
            multiboot_mmap_length);
+    // memcpy(&boot_state.mb_mmap_info.mmap, (void *)(word_t)mbi->part2.mmap_addr,
+    //        multiboot_mmap_length);
     boot_state.mb_mmap_info.mmap_length = multiboot_mmap_length;
   } else {
     /* calculate memory the old way */

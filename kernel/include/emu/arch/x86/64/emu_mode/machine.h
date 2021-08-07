@@ -13,11 +13,12 @@
 #include <arch/model/smp.h>
 #include <arch/machine.h>
 #include <emu/emu_assert.h>
+#include <emu/emu_globalstate.h>
 
 static inline cr3_t makeCR3(paddr_t addr, word_t pcid)
 {
-    // return cr3_new(addr, config_set(CONFIG_SUPPORT_PCID) ? pcid : 0);
-    assert(!"Not implemented yet");
+    return cr3_new(addr, config_set(CONFIG_SUPPORT_PCID) ? pcid : 0);
+    // assert(!"Not implemented yet");
 }
 
 /* Address space control */
@@ -59,24 +60,27 @@ static inline paddr_t getCurrentUserVSpaceRoot(void)
 
 static inline void setCurrentCR3(cr3_t cr3, word_t preserve_translation)
 {
-// #ifdef CONFIG_KERNEL_SKIM_WINDOW
-//     /* we should only ever be enabling the kernel window, as the bulk of the
-//      * cr3 loading when using the SKIM window will happen on kernel entry/exit
-//      * in assembly stubs */
-//     assert(cr3_get_pml4_base_address(cr3) == kpptr_to_paddr(x64KSKernelPML4));
-// #else
-//     MODE_NODE_STATE(x64KSCurrentCR3) = cr3;
-// #endif
-//     word_t cr3_word = cr3.words[0];
-//     if (config_set(CONFIG_SUPPORT_PCID)) {
-//         if (preserve_translation) {
-//             cr3_word |= BIT(63);
-//         }
-//     } else {
-//         assert(cr3_get_pcid(cr3) == 0);
-//     }
-//     write_cr3(cr3_word);
-  assert(!"Not implemented yet");
+#ifdef CONFIG_KERNEL_SKIM_WINDOW
+    /* we should only ever be enabling the kernel window, as the bulk of the
+     * cr3 loading when using the SKIM window will happen on kernel entry/exit
+     * in assembly stubs */
+    assert(cr3_get_pml4_base_address(cr3) == kpptr_to_paddr(x64KSKernelPML4));
+#else
+    MODE_NODE_STATE(x64KSCurrentCR3) = cr3;
+#endif
+    word_t cr3_word = cr3.words[0];
+    /* If pcid supported, we don't flush the TLB on context switch */
+    if (config_set(CONFIG_SUPPORT_PCID)) {
+        if (preserve_translation) {
+            cr3_word |= BIT(63);
+        }
+    } else {
+        assert(cr3_get_pcid(cr3) == 0);
+    }
+    printf("Write to cr3 register. Value = %lx\n", cr3_word);
+    // write_cr3(cr3_word);
+
+//   assert(!"Not implemented yet");
 }
 
 /* there is no option for preservation translation when setting the user cr3
@@ -101,8 +105,8 @@ static inline void setCurrentUserCR3(cr3_t cr3)
 
 static inline void setCurrentVSpaceRoot(paddr_t addr, word_t pcid)
 {
-    // setCurrentCR3(makeCR3(addr, pcid), 1);
-    assert(!"Not implemented yet");
+    setCurrentCR3(makeCR3(addr, pcid), 1);
+    // assert(!"Not implemented yet");
 }
 
 static inline void setCurrentUserVSpaceRoot(paddr_t addr, word_t pcid)
