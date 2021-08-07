@@ -26,6 +26,9 @@ void seL4emu_handle_syscalls(seL4emu_ipc_message_t *msg) {
   NODE_STATE(ksCurThread) = curtcb;
   assert(NODE_STATE(ksCurThread));
 
+  /* copy ipc buffer to the tcb structure */
+  
+
   // stash the seL4 threads data
   seL4emu_store_user_context(curtcb, msg->words);
 

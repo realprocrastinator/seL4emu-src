@@ -67,6 +67,7 @@ void thread_2(void) {
     /* TASK 15: print something */
     /* hint: printf() */
     
+    printf("thread_2: hallo wereld\n");
     /* never exit */
     while (1);
 }
@@ -81,6 +82,7 @@ int main(void) {
      * @return Pointer to the bootinfo, NULL on failure
      */
     
+    info = platsupport_get_bootinfo();
     ZF_LOGF_IF(info == NULL, "Failed to get bootinfo.");
 
     /* Set up logging and give us a name: useful for debugging if the thread faults */
@@ -99,6 +101,7 @@ int main(void) {
     * @param bi Pointer to the bootinfo describing what resources are available
     */
     
+    simple_default_init_bootinfo(&simple, info);
 
     
     /* TASK 3: print out bootinfo and other info about simple */
@@ -107,6 +110,7 @@ int main(void) {
      * @param simple Pointer to simple interface.
      */
     
+    simple_print(&simple);
 
     
     /* TASK 4: create an allocator */
@@ -118,6 +122,7 @@ int main(void) {
      * @return returns NULL on error
      */
     
+    allocman = bootstrap_use_current_simple(&simple, ALLOCATOR_STATIC_POOL_SIZE, allocator_mem_pool);
     ZF_LOGF_IF(allocman == NULL, "Failed to initialize alloc manager.\n"
                "\tMemory pool sufficiently sized?\n"
                "\tMemory pool pointer valid?\n");
@@ -130,6 +135,7 @@ int main(void) {
      * @param alloc allocator to be used with this vka
      */
     
+    allocman_make_vka(&vka, allocman);
 
     
     /* TASK 6: get our cspace root cnode */
@@ -140,6 +146,7 @@ int main(void) {
      */
     seL4_CPtr cspace_cap;
     
+    cspace_cap = simple_get_cnode(&simple);
 
     
     /* TASK 7: get our vspace root page diretory */
@@ -150,6 +157,7 @@ int main(void) {
      */
     seL4_CPtr pd_cap;
     
+    pd_cap = simple_get_pd(&simple);
 
     
     /* TASK 8: create a new TCB */
@@ -161,6 +169,7 @@ int main(void) {
      */
     vka_object_t tcb_object = {0};
     
+    error = vka_alloc_tcb(&vka, &tcb_object);
     ZF_LOGF_IFERR(error, "Failed to allocate new TCB.\n"
                   "\tVKA given sufficient bootstrap memory?");
 
@@ -184,6 +193,7 @@ int main(void) {
      * hint 4: we don't need an IPC buffer frame or address yet
      */
     
+    error = seL4_TCB_Configure(tcb_object.cptr, seL4_CapNull,  cspace_cap, seL4_NilData, pd_cap, seL4_NilData, 0, 0);
     ZF_LOGF_IFERR(error, "Failed to configure the new TCB object.\n"
                   "\tWe're running the new thread with the root thread's CSpace.\n"
                   "\tWe're running the new thread in the root thread's VSpace.\n"
@@ -198,6 +208,7 @@ int main(void) {
     /* TASK 10: give the new thread a name */
     /* hint: we've done thread naming before */
     
+    NAME_THREAD(tcb_object.cptr, "dynamic-1: thread_2");
 
     
     /*
@@ -214,6 +225,7 @@ int main(void) {
      * hint 2: we want the new thread to run the function "thread_2"
      */
     
+    sel4utils_set_instruction_pointer(&regs, (seL4_Word)thread_2);
 
     /* check that stack is aligned correctly */
     const int stack_alignment_requirement = sizeof(seL4_Word) * 2;
@@ -233,6 +245,7 @@ int main(void) {
      * hint 2: remember the stack grows down!
      */
     
+    sel4utils_set_stack_pointer(&regs, thread_2_stack_top);
 
     
     /* TASK 13: actually write the TCB registers.  We write 2 registers:
@@ -247,6 +260,7 @@ int main(void) {
      * @return 0 on success
      */
     
+    error = seL4_TCB_WriteRegisters(tcb_object.cptr, 0, 0, 2, &regs);
     ZF_LOGF_IFERR(error, "Failed to write the new thread's register set.\n"
                   "\tDid you write the correct number of registers? See arg4.\n");
 
@@ -258,6 +272,7 @@ int main(void) {
      * @return 0 on success
      */
     
+    error = seL4_TCB_Resume(tcb_object.cptr);
     ZF_LOGF_IFERR(error, "Failed to start new thread.\n");
     /* we are done, say hello */
     printf("main: hello world\n");

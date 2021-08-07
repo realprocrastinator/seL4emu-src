@@ -124,10 +124,9 @@ exception_t handleUnknownSyscall(word_t w) {
 
     if (cap_type != cap_thread_cap) {
       userError("SysDebugNameThread: cap is not a TCB, halting");
-      // TODO(Jiawei:) haven't set up the initial caps for the roottask yet, so we skip this
-      // at the moment.
-      // halt();
+      halt();
     }
+    // TODO(Jiawei): IPC Buffer not handled at the moment
     /* Add 1 to the IPC buffer to skip the message info word */
     name = (const char *)(lookupIPCBuffer(true, NODE_STATE(ksCurThread)) + 1);
     if (!name) {
@@ -357,6 +356,9 @@ exception_t handleUserLevelFault(word_t w_a, word_t w_b) {
   // })
   // schedule();
   // activateThread();
+
+  //     current_fault = seL4_Fault_UserException_new(w_a, w_b);
+  //     handleFault(NODE_STATE(ksCurThread));
 
   return EXCEPTION_NONE;
 }

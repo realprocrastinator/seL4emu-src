@@ -22,6 +22,7 @@
 #include <object/interrupt.h>
 #include <plat/machine/intel-vtd.h>
 #include <util.h>
+#include <emu/emu_globalstate.h>
 
 #define MAX_RESERVED 1
 BOOT_DATA static region_t reserved[MAX_RESERVED];
@@ -241,6 +242,9 @@ BOOT_CODE bool_t init_sys_state(cpu_id_t cpu_id, mem_p_regs_t *mem_p_regs, ui_in
   /* Create and map bootinfo frame cap */
   create_bi_frame_cap(root_cnode_cap, it_vspace_cap, bi_frame_vptr);
 
+  /* For the emulation, we set the pointer directly to the bootinfo frame */
+  bi_frame_vptr = rootserver.boot_info;
+
   /* create and map extra bootinfo region */
   extra_bi_ret =
       create_frames_of_region(root_cnode_cap, it_vspace_cap, extra_bi_region, true,
@@ -250,11 +254,18 @@ BOOT_CODE bool_t init_sys_state(cpu_id_t cpu_id, mem_p_regs_t *mem_p_regs, ui_in
   }
   ndks_boot.bi_frame->extraBIPages = extra_bi_ret.region;
 
+  /* For the emulation, we set the pointer directly to the bootinfo frame */
+  extra_bi_frame_vptr = rootserver.extra_bi;
+
   /* create the initial thread's IPC buffer */
   ipcbuf_cap = create_ipcbuf_frame_cap(root_cnode_cap, it_vspace_cap, ipcbuf_vptr);
   if (cap_get_capType(ipcbuf_cap) == cap_null_cap) {
     return false;
   }
+
+  /* For the emulation, we set the pointer directly to the bootinfo frame */
+  ipcbuf_vptr = rootserver.ipc_buf;
+  ((seL4_BootInfo *)bi_frame_vptr)->ipcBuffer = (seL4_IPCBuffer *)ipcbuf_vptr;
 
   /* create all userland image frames */
   create_frames_ret =

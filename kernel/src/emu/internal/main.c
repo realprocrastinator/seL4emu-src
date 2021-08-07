@@ -17,6 +17,10 @@
 #include <emu/emu_syscalls.h>
 #include <emu_arch/emu_boot.h>
 
+// seL4
+#include <model/statedata.h>
+#include <kernel/boot.h>
+
 #define SOCKET_NAME "/tmp/uds-test.socket"
 #define BUFFER_SIZE (27 * 8)
 #define ROOT_TASK_PATH "/home/kukuku/UNSW/cs9991/sel4-projects/sel4-emu-stub/hello-world_build/emu-images/hello-world-image-x86_64-pc99-emu"
@@ -103,7 +107,7 @@ int main() {
    * This is a fake memory region emulating the 4GB physical memory for testing
    * Should be using a file backed mapping later and let use configured teh size.
    */
-  void *addr = mmap((void *)SEL4_EMU_PMEM_BASE, 4096UL * 1024UL * 1024UL, PROT_READ | PROT_WRITE,
+  void *addr = mmap((void *)SEL4_EMU_PMEM_BASE, SEL4_EMU_PMEM_SIZE, PROT_READ | PROT_WRITE,
                     MAP_FIXED | MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
   assert((word_t)addr == SEL4_EMU_PMEM_BASE);
   if (addr == MAP_FAILED) {
@@ -116,21 +120,32 @@ int main() {
     exit(EXIT_FAILURE);
   }
 
+  /* Initialize the global threads tracking array */
+  seL4emu_bk_tid_init();
+
   /* emulate system boot to get the bootinfo and intialize the system */
   seL4emu_boot();
-
-  seL4emu_bk_tid_init();
+  tcb_t *roottcb = NODE_STATE(ksCurThread);
+  assert(roottcb != NULL);
 
   pid_t pid = fork();
   if (pid > 0) {
     printf("Starting client %d.\n", pid);
-    int id = seL4emu_bk_tid_insert(pid);
-    if (id < 0) {
+    
+    /* At this stage, we al ready set up the roottask tcb if successfull */
+    if (seL4emu_bk_tcbptr_insert(pid, roottcb) < 0) {
       printf("Failed to create a new seL4 thread due to runnning out of space in tid list.\n");
       goto cleanup_exit;
     }
+
   } else if (pid == 0) {
-    execve(ROOT_TASK_PATH, NULL, NULL);
+    char *argv[2];
+    argv[0] = (char *)malloc(sizeof(unsigned long));
+    argv[0] = (char *)rootserver.boot_info;
+    argv[1] = NULL;
+
+    /* pass the boot info to the roottask */
+    execve(ROOT_TASK_PATH, argv, NULL);
   }
 
   syscall_loop(connection_socket);
@@ -139,7 +154,7 @@ int main() {
 
 cleanup_exit:
   waitpid(-1, &status, 0);
-
+  munmap((void *)SEL4_EMU_PMEM_BASE, SEL4_EMU_PMEM_SIZE);
   close(connection_socket);
   // unlink the socket
   unlink(SOCKET_NAME);

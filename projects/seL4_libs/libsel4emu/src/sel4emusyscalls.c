@@ -122,6 +122,11 @@ void seL4emu_sys_send_recv(seL4_Word sys, seL4_Word dest, seL4_Word *out_dest,
 
     /*recv result*/
     seL4emu_uds_recv(&msg, sizeof(msg));
+
+    *in_out_mr0 = seL4emu_get_ipc_register(&msg, R10);
+    *in_out_mr1 = seL4emu_get_ipc_register(&msg, R8);
+    *in_out_mr2 = seL4emu_get_ipc_register(&msg, R9);
+    *in_out_mr3 = seL4emu_get_ipc_register(&msg, R15);
   }
 }
 

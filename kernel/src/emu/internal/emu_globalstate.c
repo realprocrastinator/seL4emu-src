@@ -31,7 +31,7 @@ char *ki_skim_start;
 char *ki_skim_end;
 
 /* Bookkeeping data structure to track all the running seL4 threads on the current host */
-char seL4emu_g_tcbs[CONFIG_MAX_SEL4_CLIENTS][BIT(seL4_TCBBits)] ALIGN(BIT(TCB_SIZE_BITS));
+tcb_t *seL4emu_g_tcbs[CONFIG_MAX_SEL4_CLIENTS];
 
 /**
  * Bookkeeping data structure for tracking the seL4 clients using pids, as we map
@@ -54,26 +54,26 @@ char seL4emu_g_ipc_buffers[CONFIG_MAX_SEL4_CLIENTS][BIT(seL4_PageBits)] ALIGN(BI
  */
 char seL4emu_g_bi_frame[BIT(seL4_PageBits)] ALIGN(BIT(seL4_PageBits));
 
-word_t seL4emu_bk_tcbblock_get(pid_t pid) {
+tcb_t *seL4emu_bk_tcbptr_get(pid_t pid) {
   assert(pid > 0);
-  word_t ret;
+  tcb_t *ret;
   int id = seL4emu_bk_tid_get(pid);
   if (id < 0) {
-    ret = 0;
+    ret = NULL;
   } else {
-    ret = (word_t)&seL4emu_g_tcbs[id];
+    ret = seL4emu_g_tcbs[id];
   }
   return ret;
 }
 
-tcb_t *seL4emu_bk_tcbptr_get(pid_t pid) {
-  word_t vaddr = seL4emu_bk_tcbblock_get(pid);
-  tcb_t *ret;
-
-  if (!vaddr) {
-    ret = NULL;
+int seL4emu_bk_tcbptr_insert(pid_t pid, tcb_t *tcbptr) {
+  assert(pid > 0);
+  int ret = 0;
+  int id = seL4emu_bk_tid_insert(pid);
+  if (id < 0) {
+    ret = -1;
   } else {
-    ret = TCB_PTR(vaddr + TCB_OFFSET);
+    seL4emu_g_tcbs[id] = tcbptr;
   }
   return ret;
 }

@@ -456,6 +456,10 @@ BOOT_CODE tcb_t *create_initial_thread(cap_t root_cnode_cap, cap_t it_pd_cap, vp
             SLOT_PTR(rootserver.tcb, tcbBuffer));
   tcb->tcbIPCBuffer = ipcbuf_vptr;
 
+  /* 
+   * RDI will be the first register to be poped, also the register
+   * contains the first argument in __sel4_start_root
+   * */
   setRegister(tcb, capRegister, bi_frame_vptr);
   setNextPC(tcb, ui_v_entry);
 
@@ -509,17 +513,19 @@ BOOT_CODE void init_core_state(tcb_t *scheduler_action) {
   // #ifdef CONFIG_HAVE_FPU
   //     NODE_STATE(ksActiveFPUState) = NULL;
   // #endif
-  // #ifdef CONFIG_DEBUG_BUILD
-  //     /* add initial threads to the debug queue */
-  //     NODE_STATE(ksDebugTCBs) = NULL;
-  //     if (scheduler_action != SchedulerAction_ResumeCurrentThread &&
-  //         scheduler_action != SchedulerAction_ChooseNewThread) {
-  //         tcbDebugAppend(scheduler_action);
-  //     }
-  //     tcbDebugAppend(NODE_STATE(ksIdleThread));
-  // #endif
-  //     NODE_STATE(ksSchedulerAction) = scheduler_action;
-  //     NODE_STATE(ksCurThread) = NODE_STATE(ksIdleThread);
+  #ifdef CONFIG_DEBUG_BUILD
+      /* add initial threads to the debug queue */
+      NODE_STATE(ksDebugTCBs) = NULL;
+      if (scheduler_action != SchedulerAction_ResumeCurrentThread &&
+          scheduler_action != SchedulerAction_ChooseNewThread) {
+          tcbDebugAppend(scheduler_action);
+      }
+      tcbDebugAppend(NODE_STATE(ksIdleThread));
+  #endif
+      NODE_STATE(ksSchedulerAction) = scheduler_action;
+      // NODE_STATE(ksCurThread) = NODE_STATE(ksIdleThread);
+      /* At the moment we immediately switch to the roottask */
+      NODE_STATE(ksCurThread) = scheduler_action;
   // #ifdef CONFIG_KERNEL_MCS
   //     NODE_STATE(ksCurSC) = NODE_STATE(ksCurThread->tcbSchedContext);
   //     NODE_STATE(ksConsumed) = 0;
@@ -527,9 +533,6 @@ BOOT_CODE void init_core_state(tcb_t *scheduler_action) {
   //     NODE_STATE(ksReleaseHead) = NULL;
   //     NODE_STATE(ksCurTime) = getCurrentTime();
   // #endif
-
-  /* at the moment we set this manually */
-  NODE_STATE(ksCurThread) = NODE_STATE(ksIdleThread);
 }
 
 BOOT_CODE static bool_t provide_untyped_cap(cap_t root_cnode_cap, bool_t device_memory, pptr_t pptr,

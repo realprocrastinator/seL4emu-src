@@ -629,8 +629,6 @@ static BOOT_CODE bool_t try_boot_sys_mbi1(multiboot_info_t *mbi) {
 }
 
 static BOOT_CODE bool_t try_boot_sys_mbi2(multiboot2_header_t *mbi2) {
-  /* We don't need this at the moment */
-
   // int mod_count                  = 0;
   // multiboot2_tag_t const *tag   = (multiboot2_tag_t *)(mbi2 + 1);
   // multiboot2_tag_t const *tag_e = (multiboot2_tag_t *)((word_t)mbi2 + mbi2->total_size);
@@ -720,7 +718,8 @@ static BOOT_CODE bool_t try_boot_sys_mbi2(multiboot2_header_t *mbi2) {
   //     return false;
   // }
 
-  return true;
+  /* We don't need this at the moment */
+  return false;
 }
 
 BOOT_CODE VISIBLE void boot_sys(unsigned long multiboot_magic, void *mbi) {

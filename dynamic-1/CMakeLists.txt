@@ -28,12 +28,8 @@ target_link_libraries(dynamic-1
 
 include(rootserver)
 DeclareRootserver(dynamic-1)
-set(FINISH_COMPLETION_TEXT "
-	Failed to initialize alloc manager.
-	Memory pool sufficiently sized?
-	Memory pool pointer valid?")
-set(START_COMPLETION_TEXT "
-Failed to get bootinfo.")
+set(FINISH_COMPLETION_TEXT "thread_2: hallo wereld")
+set(START_COMPLETION_TEXT "main: hello world")
 configure_file(${SEL4_TUTORIALS_DIR}/tools/expect.py ${CMAKE_BINARY_DIR}/check @ONLY)
 include(simulation)
 GenerateSimulateScript()

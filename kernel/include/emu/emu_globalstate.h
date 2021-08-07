@@ -7,13 +7,12 @@
 
 // TODO(Jiawei): move to the build system to auto gen based on the configuration
 #define CONFIG_MAX_SEL4_CLIENTS 2
-
+#define SEL4_EMU_PMEM_SIZE 4096UL * 1024UL * 1024UL
 #define SEL4_EMU_PMEM_BASE 0xa000000UL
 
 /* Bookkeeping data structure to track all the running seL4 threads on the
  * current host */
-extern char seL4emu_g_tcbs[CONFIG_MAX_SEL4_CLIENTS][BIT(seL4_TCBBits)] ALIGN(
-    BIT(TCB_SIZE_BITS));
+extern tcb_t *seL4emu_g_tcbs[CONFIG_MAX_SEL4_CLIENTS];
 
 /**
  * Bookkeeping data structure for tracking the seL4 clients using pids, as we
@@ -47,6 +46,15 @@ extern char seL4emu_g_bi_frame[BIT(seL4_PageBits)] ALIGN(BIT(seL4_PageBits));
 extern int seL4emu_g_ids[CONFIG_MAX_SEL4_CLIENTS];
 
 /**
+ * initialize the id list to all -1 indicating not used.
+ */
+static inline void seL4emu_bk_tid_init() {
+  for (int i = 0; i < CONFIG_MAX_SEL4_CLIENTS; ++i) {
+    seL4emu_g_ids[i] = -1;
+  }
+}
+
+/**
  * find the id mapped to the pid
  * TODO(Jiawei): avoid liner search for performance, but shoudld be fine as we
  * don't have many clients at the moment. return -1 if not found.
@@ -59,15 +67,6 @@ static inline int seL4emu_bk_tid_get(pid_t pid) {
     }
   }
   return -1;
-}
-
-/**
- * initialize the id list to all -1 indicating not used.
- */
-static inline void seL4emu_bk_tid_init() {
-  for (int i = 0; i < CONFIG_MAX_SEL4_CLIENTS; ++i) {
-    seL4emu_g_ids[i] = -1;
-  }
 }
 
 /**
@@ -114,18 +113,16 @@ static inline int seL4emu_bk_tid_remove(pid_t pid) {
 }
 
 /**
- * get the tcb structure belongs to the client
- * TODO(Jiawei): avoid liner search for performance, but shoudld be fine as we
- * don't have many clients at the moment. return 0 if not found, return address
- * found on success.
- */
-word_t seL4emu_bk_tcbblock_get(pid_t pid);
-
-/**
  * get the tcb ptr by given pid
  * return NULL if not found, return ptr to the tcb on success.
  */
 tcb_t *seL4emu_bk_tcbptr_get(pid_t pid);
+
+/**
+ * set the tcb ptr by given pid
+ * return -1 if failed, return 0 on success.
+ */
+int seL4emu_bk_tcbptr_insert(pid_t pid, tcb_t *tcbptr);
 
 /**
  * stash n registers passing from the client to its tcb structure,
