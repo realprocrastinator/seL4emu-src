@@ -4,6 +4,9 @@
 #include <sel4/types.h>
 #include <stddef.h>
 
+// TODO(Jiawei): these macro only for debugging usage, should be moved to an appropriate place later.
+#define SOCKET_NAME "/tmp/uds-test.socket"
+
 /* copy from kernel/include/arch/x86/64/mode/machine/registerset.h */
 
 /* These are the indices of the registers in the
@@ -72,9 +75,25 @@ enum _register {
   n_contextRegisters = 24 /* 0xc0 */
 };
 
-enum seL4emu_ipc_tag { IPC_SEL4 = 0, IPC_INTERNAL = 1 };
+enum seL4EmuIPCTagType { 
+  IPC_SEL4 = 0, 
+  IPC_INTERNAL = 1 
+};
 
-enum seL4emu_ipc_data { TAG = 0, LEN, ID };
+enum seL4EmuInternalHdrType {
+  SEL4EMU_INTERNAL_CLIENT_HELLO = 0,
+  SEL4EMU_INTERNAL_ACK_CLIENT_HELLO = 1, 
+  SEL4EMU_INTERNAL_BOOTINFO = 1,
+  SEL4EMU_INTERNAL_INIT_SUCCESS,
+  SEL4EMU_INTERNAL_INIT_FAILED,
+  SEL4EMU_INTERNAL_MAP_SUCCESS,
+  SEL4EMU_INTERNAL_MAP_FAILED
+};
+
+enum seL4emu_ipc_data { 
+  TAG = 0, 
+  LEN, ID 
+};
 
 /**
  * This the message structure for emulating the seL4 IPC, the mesassage has
@@ -165,5 +184,7 @@ static inline seL4_Word seL4emu_get_ipc_data(seL4emu_ipc_message_t *msg,
   return ret;
 }
 
-void seL4emu_uds_send(seL4emu_ipc_message_t *msg, size_t len);
-void seL4emu_uds_recv(seL4emu_ipc_message_t *msg, size_t len);
+int seL4emu_uds_send_impl(int fd, size_t len, void* msg);
+int seL4emu_uds_recv_impl(int fd, size_t len, void* msg);
+int seL4emu_uds_send(void *buff, size_t len);
+int seL4emu_uds_recv(void *buff, size_t len);

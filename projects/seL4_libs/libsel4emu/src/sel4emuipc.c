@@ -1,81 +1,82 @@
-#include <sel4emuipc.h>
+#include <mini_assert.h>
+#include <mini_errno.h>
+#include <mini_stdio.h>
 #include <mini_syscalls.h>
+#include <sel4emuinternals.h>
+#include <sel4emuipc.h>
+#include <stdbool.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <string.h>
 
+static int seL4emu_rw_all(int fd, bool is_read, size_t len, void *buff) {
+  mini_assert(buff);
+  unsigned long cbuff = (unsigned long)buff;
 
-// TODO(Jiawei): these macro only for debugging usage, should be moved to an appropriate place later.
-#define SOCKET_NAME "/tmp/uds-test.socket"
+  while (len) {
+    ssize_t rd;
+    if (is_read) {
+      rd = mini_read(fd, (void *)cbuff, len);
+    } else {
+      rd = mini_write(fd, (void *)cbuff, len);
+    }
 
-void seL4emu_uds_send(seL4emu_ipc_message_t *msg, size_t len) {
-  struct sockaddr_un addr;
-  int ret;
-  int data_socket;
-
-  /* we are going to use the UNIX domain socket to send the IPC message */
-  data_socket = mini_socket(AF_UNIX, SOCK_SEQPACKET, 0);
-  if (data_socket < 0) {
-    mini_perror("Emulation internal mini_socket");
-    return;
+    if (rd == 0) {
+      // EOF
+      // Requested IO operation ended prematurely.
+      mini_printf("Emulation internal Requested IO operation ended prematurely.\n");
+      return -1;
+    } else if (rd < 0) {
+      switch (mini_errno) {
+      case EINTR:
+      case EWOULDBLOCK:
+        // retry
+        continue;
+      }
+      // an actual error!
+      // IO error
+      mini_perror("Emulation internal mini_rw_all IO error");
+      return -1;
+    } else {
+      // as usual, we assume rd never larger than len
+      len -= rd;
+      cbuff += rd;
+    }
   }
 
-  /* zero out the structure for copying the data */
-  memset(&addr, 0, sizeof(addr));
-
-  addr.sun_family = AF_UNIX;
-  strncpy(addr.sun_path, SOCKET_NAME, sizeof(addr.sun_path) - 1);
-
-  /* try connecting the socket */
-  ret = mini_connect(data_socket, (const struct sockaddr*) &addr, sizeof(addr));
-  if (ret < 0 ) {
-    mini_perror("Emulation internal mini_connect");
-    return;
-  }
-
-  /* write the data to the socket */
-  ret = mini_write(data_socket, msg, len);
-  if (ret < 0) {
-    mini_perror("Emulation internal mini_write");
-    return;
-  }
-
-  // close the socket
-  mini_close(data_socket);
+  return 0;
 }
 
-void seL4emu_uds_recv(seL4emu_ipc_message_t *msg, size_t len) {
-  struct sockaddr_un addr;
-  int ret;
-  int data_socket;
+int seL4emu_uds_send_impl(int fd, size_t len, void *msg) {
+  int ret = 0;
 
-  /* we are going to use the UNIX domain socket to send the IPC message */
-  data_socket = mini_socket(AF_UNIX, SOCK_SEQPACKET, 0);
-  if (data_socket < 0) {
-    mini_perror("Emulation internal mini_socket");
-    return;
-  }
+  /* write the data to the socket */
+  ret = seL4emu_rw_all(fd, false, len, msg);
 
-  /* zero out the structure for copying the data */
-  memset(&addr, 0, sizeof(addr));
+  return ret;
+}
 
-  addr.sun_family = AF_UNIX;
-  strncpy(addr.sun_path, SOCKET_NAME, sizeof(addr.sun_path) - 1);
+int seL4emu_uds_recv_impl(int fd, size_t len, void *msg) {
+  int ret = 0;
 
-  /* try connecting the socket */
-  ret = mini_connect(data_socket, (const struct sockaddr*) &addr, sizeof(addr));
-  if (ret < 0 ) {
-    mini_perror("Emulation internal mini_connect");
-    return;
-  }
+  /* read the data to the socket */
+  ret = seL4emu_rw_all(fd, true, len, msg);
 
-  // receive result
-  ret = mini_read(data_socket, msg, len);
-  if (ret < 0) {
-    mini_perror("Emulation internal mini_read");
-    return;
-  }
+  return ret;
+}
 
-  // close the socket
-  mini_close(data_socket);
+int seL4emu_uds_send(void *msg, size_t len) {
+  mini_assert(msg);
+  int fd = ST_GET_SOCK(seL4emu_g_initstate);
+  mini_assert(fd > 0);
+
+  seL4emu_uds_send_impl(fd, len, msg);
+}
+
+int seL4emu_uds_recv(void *msg, size_t len) {
+  mini_assert(msg);
+  int fd = ST_GET_SOCK(seL4emu_g_initstate);
+  mini_assert(fd > 0);
+
+  seL4emu_uds_recv_impl(fd, len, msg);
 }

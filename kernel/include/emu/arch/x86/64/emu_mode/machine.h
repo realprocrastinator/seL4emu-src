@@ -13,7 +13,6 @@
 #include <arch/model/smp.h>
 #include <arch/machine.h>
 #include <emu/emu_assert.h>
-#include <emu/emu_globalstate.h>
 
 static inline cr3_t makeCR3(paddr_t addr, word_t pcid)
 {

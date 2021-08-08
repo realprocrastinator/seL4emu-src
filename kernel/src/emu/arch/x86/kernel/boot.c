@@ -13,6 +13,7 @@
 #include <arch/object/interrupt.h>
 #include <arch/object/ioport.h>
 #include <config.h>
+#include <emu/emu_globalstate.h>
 #include <kernel/boot.h>
 #include <linker.h>
 #include <machine.h>
@@ -22,7 +23,6 @@
 #include <object/interrupt.h>
 #include <plat/machine/intel-vtd.h>
 #include <util.h>
-#include <emu/emu_globalstate.h>
 
 #define MAX_RESERVED 1
 BOOT_DATA static region_t reserved[MAX_RESERVED];
@@ -120,9 +120,18 @@ BOOT_CODE bool_t init_sys_state(cpu_id_t cpu_id, mem_p_regs_t *mem_p_regs, ui_in
   ui_v_reg.start = ui_info.p_reg.start - ui_info.pv_offset;
   ui_v_reg.end = ui_info.p_reg.end - ui_info.pv_offset;
 
+  /*
+   * For the emulation we bookkeep those info for the client to do
+   * the mapping.
+   * */
   ipcbuf_vptr = ui_v_reg.end;
+  EMUST_SET_RT_IPCBUFREF(seL4emu_g_sysstate, ipcbuf_vptr);
+
   bi_frame_vptr = ipcbuf_vptr + BIT(PAGE_BITS);
+  EMUST_SET_RT_BIREF(seL4emu_g_sysstate, bi_frame_vptr);
+
   extra_bi_frame_vptr = bi_frame_vptr + BIT(PAGE_BITS);
+  EMUST_SET_RT_XBIREF(seL4emu_g_sysstate, bi_frame_vptr);
 
   if (vbe->vbeMode != -1) {
     extra_bi_size += sizeof(seL4_X86_BootInfo_VBE);
@@ -264,8 +273,8 @@ BOOT_CODE bool_t init_sys_state(cpu_id_t cpu_id, mem_p_regs_t *mem_p_regs, ui_in
   }
 
   /* For the emulation, we set the pointer directly to the bootinfo frame */
-  ipcbuf_vptr = rootserver.ipc_buf;
   ((seL4_BootInfo *)bi_frame_vptr)->ipcBuffer = (seL4_IPCBuffer *)ipcbuf_vptr;
+  ipcbuf_vptr = rootserver.ipc_buf;
 
   /* create all userland image frames */
   create_frames_ret =

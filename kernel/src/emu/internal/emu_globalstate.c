@@ -54,6 +54,11 @@ char seL4emu_g_ipc_buffers[CONFIG_MAX_SEL4_CLIENTS][BIT(seL4_PageBits)] ALIGN(BI
  */
 char seL4emu_g_bi_frame[BIT(seL4_PageBits)] ALIGN(BIT(seL4_PageBits));
 
+/**
+ * Bookkeeping the state for the emulation framework
+ */
+struct seL4emu_sysstate seL4emu_g_sysstate;
+
 tcb_t *seL4emu_bk_tcbptr_get(pid_t pid) {
   assert(pid > 0);
   tcb_t *ret;

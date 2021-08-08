@@ -238,7 +238,7 @@ if (seL4UseEmu)
         CFILES
             # emulation internal implementations
             src/emu/internal/main.c
-            src/emu/internal/emu_syscalls.c
+            src/emu/internal/emu_svc.c
             src/emu/internal/emu_ipcmsg.c
             src/emu/internal/emu_globalstate.c
             src/emu/internal/emu_boot.c

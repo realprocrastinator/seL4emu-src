@@ -1,10 +1,7 @@
 #pragma once
 
 #include <emu/emu_types.h>
-
-enum seL4emu_ipc_tag { IPC_SEL4 = 0, IPC_INTERNAL = 1 };
-
-enum seL4emu_ipc_data { TAG = 0, LEN, ID };
+#include <emu/emu_common.h>
 
 /**
  * This the message structure for emulating the seL4 IPC, the mesassage has
@@ -95,5 +92,5 @@ static inline seL4_Word seL4emu_get_ipc_data(seL4emu_ipc_message_t *msg,
   return ret;
 }
 
-int seL4emu_ipc_recv(seL4emu_ipc_message_t *msg, size_t len);
-int seL4emu_ipc_send(seL4emu_ipc_message_t *msg, size_t len);
+int seL4emu_uds_recv(int fd, size_t len, void* msg);
+int seL4emu_uds_send(int fd, size_t len, void* msg);

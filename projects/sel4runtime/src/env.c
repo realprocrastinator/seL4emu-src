@@ -16,6 +16,9 @@
 #include <sel4/sel4.h>
 #include <sel4runtime/gen_config.h>
 #include <autoconf.h>
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <sel4emuinternals.h>
+#endif
 
 #include "init.h"
 #include "util.h"
@@ -114,6 +117,9 @@ static thread_lookup_t *thread_lookup_from_tls_region(unsigned char *tls_region)
 static const sel4runtime_size_t tls_region_size(sel4runtime_size_t mem_size, sel4runtime_size_t align);
 static void empty_tls(void);
 static int is_initial_thread(void);
+#ifdef CONFIG_SEL4_USE_EMULATION    
+static void seL4emu_sel4runtime_internal_setup(void);
+#endif
 
 char const *sel4runtime_process_name(void)
 {
@@ -268,6 +274,9 @@ void __sel4runtime_load_env(
     if (argc > 0) {
         name_process(argv[0]);
     }
+#ifdef CONFIG_SEL4_USE_EMULATION
+    seL4emu_sel4runtime_internal_setup();
+#endif
     try_init_static_tls();
 
     env.argc = argc;
@@ -310,21 +319,21 @@ static void parse_auxv(auxv_t const auxv[])
         case AT_SEL4_BOOT_INFO: {
             seL4_BootInfo *bootinfo = auxv[i].a_un.a_ptr;
             if (bootinfo == SEL4RUNTIME_NULL) {
-#ifdef CONFIG_SEL4_USE_EMULATION
-                /* if we are using the emulation, and haven't found 
-                * a good way to let the server set up a frame of bootinfo and IPCbuffer for us, we just do ourselves. 
-                * */
-                env.bootinfo = &emubootinfo;
-                if (!emubootinfo.ipcBuffer) {
-                    emubootinfo.ipcBuffer = (seL4_IPCBuffer *) emuipcbuffer;
-                }
-                env.initial_thread_ipc_buffer = emubootinfo.ipcBuffer;
-                env.initial_thread_tcb = seL4_CapInitThreadTCB;    
-#endif          
+// #ifdef CONFIG_SEL4_USE_EMULATION
+//                 /* if we are using the emulation, and haven't found 
+//                 * a good way to let the server set up a frame of bootinfo and IPCbuffer for us, we just do ourselves. 
+//                 * */
+//                 env.bootinfo = &emubootinfo;
+//                 if (!emubootinfo.ipcBuffer) {
+//                     emubootinfo.ipcBuffer = (seL4_IPCBuffer *) emuipcbuffer;
+//                 }
+//                 env.initial_thread_ipc_buffer = emubootinfo.ipcBuffer;
+//                 env.initial_thread_tcb = seL4_CapInitThreadTCB;    
+// #endif          
                 break;
             }
             env.bootinfo = bootinfo;
-            env.initial_thread_ipc_buffer = bootinfo->ipcBuffer;
+            // env.initial_thread_ipc_buffer = bootinfo->ipcBuffer;
             env.initial_thread_tcb = seL4_CapInitThreadTCB;
             break;
         }
@@ -462,3 +471,16 @@ static int is_initial_thread(void)
     return env.initial_thread_tls_base == (sel4runtime_uintptr_t)SEL4RUNTIME_NULL
            || sel4runtime_get_tls_base() == env.initial_thread_tls_base;
 }
+
+/**
+ * We need to do some initial setup when using the emulation.
+ * Because we are executed by the kernel emulator, however, we
+ * haven't found a go way to pass the bootinfo due to the 
+ * entry funnction's prototype. Hence, we wait here until the 
+ * kernel emulator finished and send us some information. 
+ */
+#ifdef CONFIG_SEL4_USE_EMULATION    
+static void seL4emu_sel4runtime_internal_setup(void) {
+    seL4emu_internal_setup(&env.bootinfo);
+}
+#endif

@@ -14,7 +14,7 @@
 // emulation
 #include <emu/emu_globalstate.h>
 #include <emu/emu_ipcmsg.h>
-#include <emu/emu_syscalls.h>
+#include <emu/emu_svc.h>
 #include <emu_arch/emu_boot.h>
 
 // seL4
@@ -22,7 +22,6 @@
 #include <kernel/boot.h>
 
 #define SOCKET_NAME "/tmp/uds-test.socket"
-#define BUFFER_SIZE (27 * 8)
 #define ROOT_TASK_PATH "/home/kukuku/UNSW/cs9991/sel4-projects/sel4-emu-stub/hello-world_build/emu-images/hello-world-image-x86_64-pc99-emu"
 
 static void cleanup_onexit() {
@@ -75,10 +74,15 @@ static void syscall_loop(int conn_sock) {
   seL4emu_ipc_message_t buffer;
   int ret;
 
+  // TODO(Jiawei): for easy testing, we use blocking socket, as we
+  // only have one roottask at the moment. We shoudld use non-blocking
+  // socket to avoid starving other clients later.
+
+  // wait for incoming connections
+  data_socket = accept(conn_sock, NULL, NULL);
+
   // this is the main loop for handling the connections
   for (;;) {
-    // wait for incoming connections
-    data_socket = accept(conn_sock, NULL, NULL);
     if (data_socket == -1) {
       perror("accept failed");
       exit(EXIT_FAILURE);
@@ -89,12 +93,14 @@ static void syscall_loop(int conn_sock) {
     if (ret == -1) {
       perror("read failed");
       exit(EXIT_FAILURE);
+    } else if (ret == 0) {
+      // EOF
+      // socket closed on the client side
+      close(data_socket);
+      break;
     }
 
-    seL4emu_handle_syscalls(&buffer);
-
-    // close the socket
-    close(data_socket);
+    seL4emu_handle_client_ipc(data_socket, &buffer);
   }
 }
 
@@ -128,6 +134,15 @@ int main() {
   tcb_t *roottcb = NODE_STATE(ksCurThread);
   assert(roottcb != NULL);
 
+  /* save the current emulation system state */
+  seL4emu_g_sysstate.emu_pmem.base = addr;
+  seL4emu_g_sysstate.emu_pmem.size = SEL4_EMU_PMEM_SIZE;
+  // TODO(Jiawei): how much pmem left?
+  seL4emu_g_sysstate.conn_sock = connection_socket;
+  seL4emu_g_sysstate.seL4emu_curthread = roottcb;
+  seL4emu_g_sysstate.seL4roottask = roottcb;
+  seL4emu_g_sysstate.rt_obj = &rootserver;
+  
   pid_t pid = fork();
   if (pid > 0) {
     printf("Starting client %d.\n", pid);
@@ -137,15 +152,10 @@ int main() {
       printf("Failed to create a new seL4 thread due to runnning out of space in tid list.\n");
       goto cleanup_exit;
     }
-
+    
   } else if (pid == 0) {
-    char *argv[2];
-    argv[0] = (char *)malloc(sizeof(unsigned long));
-    argv[0] = (char *)rootserver.boot_info;
-    argv[1] = NULL;
-
     /* pass the boot info to the roottask */
-    execve(ROOT_TASK_PATH, argv, NULL);
+    execve(ROOT_TASK_PATH, NULL, NULL);
   }
 
   syscall_loop(connection_socket);

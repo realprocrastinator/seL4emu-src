@@ -1,0 +1,35 @@
+#pragma once
+
+#include <stdint.h>
+
+// TODO(Jiawei): these macro only for debugging usage, should be moved to an appropriate place
+// later.
+#define SOCKET_NAME "/tmp/uds-test.socket"
+
+enum seL4EmuErrorType {
+  SEL4EMU_INIT_NOERROR = 0,
+  SEL4EMU_INIT_SOCK_FAILED,
+  SEL4EMU_INIT_CONNECT_FAILED,
+  SEL4EMU_INIT_RD_FAILED,
+  SEL4EMU_INIT_WR_FAILED,
+  SEL4EMU_INIT_BIMMAP_FAILED,
+  SEL4EMU_INIT_IPCBUFMMAP_FAILED,
+  SEL4EMU_INIT_SIGNAL_FAILED,
+  SEL4EMU_MMAP_FAILED,
+};
+
+enum seL4EmuInternalHdrType {
+  SEL4EMU_INTERNAL_CLIENT_HELLO = 0,
+  SEL4EMU_INTERNAL_ACK_CLIENT_HELLO = 1,
+  SEL4EMU_INTERNAL_BOOTINFO = 1,
+  SEL4EMU_INTERNAL_INIT_SUCCESS,
+  SEL4EMU_INTERNAL_INIT_FAILED,
+  SEL4EMU_INTERNAL_MAP_SUCCESS,
+  SEL4EMU_INTERNAL_MAP_FAILED
+};
+
+enum seL4EmuIPCTagType { IPC_SEL4 = 0, IPC_INTERNAL = 1 };
+
+enum seL4emu_ipc_data { TAG = 0, LEN, ID };
+
+typedef uint64_t seL4emu_err_t;

@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <autoconf.h>
+#include <kernel/boot.h>
 #include <object/structures.h>
 #include <unistd.h>
 
@@ -27,8 +28,7 @@ extern int seL4emu_g_ids[CONFIG_MAX_SEL4_CLIENTS];
  * untyped memory is implemented. Static data structure of seL4 clients'
  * ipcBuffers, total size = 4k * CONFIG_MAX_SEL4_CLIENTS
  */
-extern char seL4emu_g_ipc_buffers[CONFIG_MAX_SEL4_CLIENTS]
-                                 [BIT(seL4_PageBits)] ALIGN(BIT(seL4_PageBits));
+extern char seL4emu_g_ipc_buffers[CONFIG_MAX_SEL4_CLIENTS][BIT(seL4_PageBits)] ALIGN(BIT(seL4_PageBits));
 
 /**
  * TODO(Jiawei:) static allocate here at the moement for easy debugging and
@@ -44,6 +44,51 @@ extern char seL4emu_g_bi_frame[BIT(seL4_PageBits)] ALIGN(BIT(seL4_PageBits));
  * client is requesting the kernel service.
  */
 extern int seL4emu_g_ids[CONFIG_MAX_SEL4_CLIENTS];
+
+struct seL4emu_pmem {
+  int fd;
+  size_t size;
+  size_t reserve;
+  size_t free;
+  void *base;
+};
+
+/* The emulation internal state */
+struct seL4emu_sysstate {
+  pid_t children[CONFIG_MAX_SEL4_CLIENTS];
+  struct seL4emu_pmem emu_pmem;
+  tcb_t *seL4emu_curthread;
+  tcb_t *seL4roottask;
+  /* Where the actual objects of the roottask lives */
+  rootserver_mem_t *rt_obj;
+  /* Those are just dummy numbers passing to the roottask as hint to map */
+  word_t rt_bi_vptr;
+  word_t rt_ipc_vptr;
+  word_t rt_xbi_vptr;
+  int conn_sock;
+};
+
+typedef struct seL4emu_sysstate seL4emu_sysstate_t;
+
+#define EMUST_GET_EMUP_RT_BIREF(state) (state.rt_obj->boot_info)
+#define EMUST_GET_EMUP_RT_XBIREF(state) (state.rt_obj->extra_bi)
+#define EMUST_GET_EMUP_RT_IPCBUFREF(state) (state.rt_obj->ipc_buf)
+
+#define EMUST_GET_RT_BIREF(state) (state.rt_bi_vptr)
+#define EMUST_GET_RT_XBIREF(state) (state.rt_xbi_vptr)
+#define EMUST_GET_RT_IPCBUFREF(state) (state.rt_ipc_vptr)
+
+#define EMUST_GET_PMEMFD(state) (state.emu_pmem.fd)
+#define EMUST_GET_PMEM_BASEPTR(state) (state.emu_pmem.base)
+#define EMUST_GET_PMEM_BASEREF(state) ((word_t)state.emu_pmem.base)
+
+#define EMUST_SET_RT_BIREF(state, vaddr) (state.rt_bi_vptr = vaddr)
+#define EMUST_SET_RT_XBIREF(state, vaddr) (state.rt_xbi_vptr = vaddr)
+#define EMUST_SET_RT_IPCBUFREF(state, vaddr) (state.rt_ipc_vptr = vaddr)
+
+#define EMUST_PMEM_OFFSET(addr, base) ((word_t)addr - (word_t)base)
+
+extern struct seL4emu_sysstate seL4emu_g_sysstate;
 
 /**
  * initialize the id list to all -1 indicating not used.
