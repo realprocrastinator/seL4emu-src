@@ -11,7 +11,9 @@
 #include <sys/mini_mman.h>
 #include <sys/mini_socket.h>
 #include <sys/un.h>
+#include <mini_fcntl.h>
 
+#define EMUPMEM_FILE "/dev/shm/seL4emu_pmem"
 #define BIT(n) (1 << n)
 
 static seL4emu_err_t create_and_connect_socket(int *data_socket) {
@@ -62,6 +64,11 @@ static seL4emu_err_t get_and_map_bootinfo(int socket, seL4_BootInfo **bootinfo) 
   uintptr_t bootinfo_ptr = msg.words[1];
   int map_fd = msg.words[2];
   size_t offset = msg.words[3];
+
+  map_fd = mini_open(EMUPMEM_FILE, O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
+  if (map_fd < 0) {
+    return SEL4EMU_INIT_OPEN_FAILED;
+  }
 
   // try map an area for bootinfo
   void *maybe_new = try_map((void *)bootinfo_ptr, BIT(seL4_PageBits), PROT_READ | PROT_WRITE,
@@ -197,6 +204,8 @@ void seL4emu_internal_setup(seL4_BootInfo **bootinfo) {
     ST_SET_BOOTINFOPTR(seL4emu_g_initstate, NULL);
     break;
   case SEL4EMU_INIT_BIMMAP_FAILED:
+    break;
+  case SEL4EMU_INIT_OPEN_FAILED:
     break;
   case SEL4EMU_INIT_CONNECT_FAILED:
     close(ST_GET_SOCK(seL4emu_g_initstate));

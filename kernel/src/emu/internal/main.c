@@ -10,6 +10,8 @@
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h> 
 
 // emulation
 #include <emu/emu_globalstate.h>
@@ -23,6 +25,7 @@
 
 #define SOCKET_NAME "/tmp/uds-test.socket"
 #define ROOT_TASK_PATH "/home/kukuku/UNSW/cs9991/sel4-projects/sel4-emu-stub/hello-world_build/emu-images/hello-world-image-x86_64-pc99-emu"
+#define EMUPMEM_FILE "/seL4emu_pmem"
 
 static void cleanup_onexit() {
   printf("Bye\n");
@@ -107,22 +110,39 @@ static void syscall_loop(int conn_sock) {
 /* This program is only used for testing whether the build system works */
 
 int main() {
+
   atexit(cleanup_onexit);
 
   /*
    * This is a fake memory region emulating the 4GB physical memory for testing
    * Should be using a file backed mapping later and let use configured teh size.
    */
+  int fd = shm_open(EMUPMEM_FILE, O_CREAT | O_EXCL | O_RDWR,
+                                 S_IRUSR | S_IWUSR);
+  if (fd == -1) {
+    perror("shm_open");
+    shm_unlink(EMUPMEM_FILE);
+
+    fd = shm_open(EMUPMEM_FILE, O_CREAT | O_EXCL | O_RDWR,
+                                 S_IRUSR | S_IWUSR);
+  }
+                   
+  if (ftruncate(fd, SEL4_EMU_PMEM_SIZE) < 0) {
+    perror("ftruncate");
+    exit(EXIT_FAILURE);
+  }
+
   void *addr = mmap((void *)SEL4_EMU_PMEM_BASE, SEL4_EMU_PMEM_SIZE, PROT_READ | PROT_WRITE,
-                    MAP_FIXED | MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+                    MAP_FIXED | MAP_SHARED, fd, 0);
   assert((word_t)addr == SEL4_EMU_PMEM_BASE);
   if (addr == MAP_FAILED) {
     perror("mmap");
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 
   int connection_socket;
   if (init_ipc_socket(&connection_socket) < 0) {
+    unlink(EMUPMEM_FILE);
     exit(EXIT_FAILURE);
   }
 
@@ -137,6 +157,7 @@ int main() {
   /* save the current emulation system state */
   seL4emu_g_sysstate.emu_pmem.base = addr;
   seL4emu_g_sysstate.emu_pmem.size = SEL4_EMU_PMEM_SIZE;
+  seL4emu_g_sysstate.emu_pmem.fd = fd;
   // TODO(Jiawei): how much pmem left?
   seL4emu_g_sysstate.conn_sock = connection_socket;
   seL4emu_g_sysstate.seL4emu_curthread = roottcb;
@@ -149,13 +170,16 @@ int main() {
     
     /* At this stage, we al ready set up the roottask tcb if successfull */
     if (seL4emu_bk_tcbptr_insert(pid, roottcb) < 0) {
-      printf("Failed to create a new seL4 thread due to runnning out of space in tid list.\n");
+      fprintf(stderr, "Failed to create a new seL4 thread due to runnning out of space in tid list.\n");
       goto cleanup_exit;
     }
     
   } else if (pid == 0) {
     /* pass the boot info to the roottask */
     execve(ROOT_TASK_PATH, NULL, NULL);
+  } else {
+    perror("fork: failed");
+    goto cleanup_exit;
   }
 
   syscall_loop(connection_socket);
@@ -168,4 +192,5 @@ cleanup_exit:
   close(connection_socket);
   // unlink the socket
   unlink(SOCKET_NAME);
+  shm_unlink(EMUPMEM_FILE);
 }

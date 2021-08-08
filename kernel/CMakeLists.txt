@@ -691,7 +691,7 @@ if (seL4UseEmu)
     target_include_directories(kernel_emulator PRIVATE ${config_dir})
     target_include_directories(kernel_emulator PRIVATE include)
     target_include_directories(kernel_emulator PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
-    target_link_libraries(kernel_emulator PRIVATE kernel_Config kernel_autoconf)
+    target_link_libraries(kernel_emulator PRIVATE kernel_Config kernel_autoconf rt)
     
     get_target_property(MAIN_CFLAGS kernel_emulator COMPILE_OPTIONS)
     add_dependencies(kernel_emulator kernel_headers)

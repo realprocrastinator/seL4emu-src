@@ -8,7 +8,7 @@
 
 // TODO(Jiawei): move to the build system to auto gen based on the configuration
 #define CONFIG_MAX_SEL4_CLIENTS 2
-#define SEL4_EMU_PMEM_SIZE 4096UL * 1024UL * 1024UL
+#define SEL4_EMU_PMEM_SIZE 1024UL * 1024UL * 1024UL
 #define SEL4_EMU_PMEM_BASE 0xa000000UL
 
 /* Bookkeeping data structure to track all the running seL4 threads on the
