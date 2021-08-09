@@ -6,6 +6,12 @@
 
 #pragma once
 
+#ifdef CONFIG_SEL4_USE_EMULATION
+#include <arch/object/structures_gen.h>
+#include <arch/types.h>
+#include <object/structures.h>
+#endif
+
 /* Fastpath cap lookup.  Returns a null_cap on failure. */
 static inline cap_t FORCE_INLINE lookup_fp(cap_t cap, cptr_t cptr)
 {

@@ -3,6 +3,7 @@
 #include <machine/registerset.h>
 #include <object/structures.h>
 #include <plat_mode/machine/hardware.h>
+#include <emu/emu_ipcmsg.h>
 
 // TODO(Jiawei): move to the build system to auto gen based on the configuration
 // #define CONFIG_MAX_SEL4_CLIENTS 2
@@ -116,4 +117,36 @@ void seL4emu_store_user_context(tcb_t *tcb, word_t *regs) {
   setRegister(tcb, RSI, regs[RSI]);
   // capRegister
   setRegister(tcb, RDI, regs[RDI]);
+}
+
+void seL4emu_load_user_context(tcb_t *tcb, word_t *regs) {
+  assert(tcb);
+  assert(regs);
+
+  /**
+   * We strictly follow the layout of registers defined in machine specific registerset.h
+   * the client side emulation framework also follows this layout
+   */
+
+  /* skip RFLAGS, Error, NextIP, RSP, and FaultIP */
+  // seL4emu_set_ipc_register(getRegister(tcb, Error), res, Error);
+  // seL4emu_set_ipc_register(getRegister(tcb, NextIP), res, NextIP);
+  // seL4emu_set_ipc_register(getRegister(tcb, FLAGS), res, FLAGS);
+  
+  // // message register
+  // seL4emu_set_ipc_register(getRegister(tcb, R15), regs, R15);
+  // // message register
+  // seL4emu_set_ipc_register(getRegister(tcb, R9), regs, R9);
+  // // message register
+  // seL4emu_set_ipc_register(getRegister(tcb, R8), regs, R8);
+  // seL4emu_set_ipc_register(getRegister(tcb, R10), regs, R10);
+  // seL4emu_set_ipc_register(getRegister(tcb, RDX), regs, RDX);
+  // seL4emu_set_ipc_register(getRegister(tcb, R14), regs, R14);
+  // seL4emu_set_ipc_register(getRegister(tcb, R13), regs, R13);
+  // seL4emu_set_ipc_register(getRegister(tcb, R12), regs, R12);
+  // seL4emu_set_ipc_register(getRegister(tcb, RBP), regs, RBP);
+  // seL4emu_set_ipc_register(getRegister(tcb, RBX), regs, RBX);
+  // seL4emu_set_ipc_register(getRegister(tcb, RAX), regs, RAX);
+  // seL4emu_set_ipc_register(getRegister(tcb, RSI), regs, RSI);
+  // seL4emu_set_ipc_register(getRegister(tcb, RDI), regs, RDI);
 }

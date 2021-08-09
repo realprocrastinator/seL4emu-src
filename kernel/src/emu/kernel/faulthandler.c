@@ -65,41 +65,41 @@ void handleFault(tcb_t *tptr)
 
 exception_t sendFaultIPC(tcb_t *tptr)
 {
-//     cptr_t handlerCPtr;
-//     cap_t  handlerCap;
-//     lookupCap_ret_t lu_ret;
-//     lookup_fault_t original_lookup_fault;
+    cptr_t handlerCPtr;
+    cap_t  handlerCap;
+    lookupCap_ret_t lu_ret;
+    lookup_fault_t original_lookup_fault;
 
-//     original_lookup_fault = current_lookup_fault;
+    original_lookup_fault = current_lookup_fault;
 
-//     handlerCPtr = tptr->tcbFaultHandler;
-//     lu_ret = lookupCap(tptr, handlerCPtr);
-//     if (lu_ret.status != EXCEPTION_NONE) {
-//         current_fault = seL4_Fault_CapFault_new(handlerCPtr, false);
-//         return EXCEPTION_FAULT;
-//     }
-//     handlerCap = lu_ret.cap;
+    handlerCPtr = tptr->tcbFaultHandler;
+    lu_ret = lookupCap(tptr, handlerCPtr);
+    if (lu_ret.status != EXCEPTION_NONE) {
+        current_fault = seL4_Fault_CapFault_new(handlerCPtr, false);
+        return EXCEPTION_FAULT;
+    }
+    handlerCap = lu_ret.cap;
 
-//     if (cap_get_capType(handlerCap) == cap_endpoint_cap &&
-//         cap_endpoint_cap_get_capCanSend(handlerCap) &&
-//         (cap_endpoint_cap_get_capCanGrant(handlerCap) ||
-//          cap_endpoint_cap_get_capCanGrantReply(handlerCap))) {
-//         tptr->tcbFault = current_fault;
-//         if (seL4_Fault_get_seL4_FaultType(current_fault) == seL4_Fault_CapFault) {
-//             tptr->tcbLookupFailure = original_lookup_fault;
-//         }
-//         sendIPC(true, true,
-//                 cap_endpoint_cap_get_capEPBadge(handlerCap),
-//                 cap_endpoint_cap_get_capCanGrant(handlerCap), true, tptr,
-//                 EP_PTR(cap_endpoint_cap_get_capEPPtr(handlerCap)));
+    if (cap_get_capType(handlerCap) == cap_endpoint_cap &&
+        cap_endpoint_cap_get_capCanSend(handlerCap) &&
+        (cap_endpoint_cap_get_capCanGrant(handlerCap) ||
+         cap_endpoint_cap_get_capCanGrantReply(handlerCap))) {
+        tptr->tcbFault = current_fault;
+        if (seL4_Fault_get_seL4_FaultType(current_fault) == seL4_Fault_CapFault) {
+            tptr->tcbLookupFailure = original_lookup_fault;
+        }
+        sendIPC(true, true,
+                cap_endpoint_cap_get_capEPBadge(handlerCap),
+                cap_endpoint_cap_get_capCanGrant(handlerCap), true, tptr,
+                EP_PTR(cap_endpoint_cap_get_capEPPtr(handlerCap)));
 
-//         return EXCEPTION_NONE;
-//     } else {
-//         current_fault = seL4_Fault_CapFault_new(handlerCPtr, false);
-//         current_lookup_fault = lookup_fault_missing_capability_new(0);
+        return EXCEPTION_NONE;
+    } else {
+        current_fault = seL4_Fault_CapFault_new(handlerCPtr, false);
+        current_lookup_fault = lookup_fault_missing_capability_new(0);
 
-        // return EXCEPTION_FAULT;
-//     }
+        return EXCEPTION_FAULT;
+    }
   // TODO(Jiawei): remove this, only for compilation
   return EXCEPTION_FAULT;
 }

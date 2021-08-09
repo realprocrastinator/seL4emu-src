@@ -120,9 +120,13 @@ void seL4emu_sys_send_recv(seL4_Word sys, seL4_Word dest, seL4_Word *out_dest,
     /* send ipc using UDS */
     seL4emu_uds_send(&msg, sizeof(msg));
 
+
+    /* This step we emulate the returning from the syscall */
     /*recv result*/
     seL4emu_uds_recv(&msg, sizeof(msg));
 
+    *out_info = seL4emu_get_ipc_register(&msg, RSI);
+    *out_dest = seL4emu_get_ipc_register(&msg, RDI);
     *in_out_mr0 = seL4emu_get_ipc_register(&msg, R10);
     *in_out_mr1 = seL4emu_get_ipc_register(&msg, R8);
     *in_out_mr2 = seL4emu_get_ipc_register(&msg, R9);

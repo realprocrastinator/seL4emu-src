@@ -253,6 +253,7 @@ if (seL4UseEmu)
             src/emu/util.c
             src/emu/inline.c
             # other
+            src/emu/fastpath/fastpath.c
             src/emu/model/statedata.c
             src/emu/model/preemption.c
             src/emu/config/default_domain.c

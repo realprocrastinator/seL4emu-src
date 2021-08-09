@@ -123,6 +123,12 @@ fastpath_mi_check(word_t msgInfo)
             + 3) & ~MASK(3);
 }
 
+
+#ifdef CONFIG_SEL4_USE_EMULATION
+static inline void fastpath_restore(word_t badge, word_t msgInfo, tcb_t *cur_thread) {
+    
+}
+#else
 static inline void NORETURN FORCE_INLINE fastpath_restore(word_t badge, word_t msgInfo, tcb_t *cur_thread)
 {
     if (config_set(CONFIG_SYSENTER) && config_set(CONFIG_HARDWARE_DEBUG_API)
@@ -264,4 +270,5 @@ static inline void NORETURN FORCE_INLINE fastpath_restore(word_t badge, word_t m
     }
     UNREACHABLE();
 }
+#endif /* CONFIG_SEL4_USE_EMULATION*/
 

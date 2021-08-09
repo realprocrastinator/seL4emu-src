@@ -634,7 +634,8 @@ void timerTick(void) {
 // #endif
 
 void rescheduleRequired(void) {
-  assert(!"Not implemented yet");
+  printf("Require Rescheduling, doing nothing at the momemnt.\n");
+  // assert(!"Not implemented yet");
   //     if (NODE_STATE(ksSchedulerAction) != SchedulerAction_ResumeCurrentThread
   //         && NODE_STATE(ksSchedulerAction) != SchedulerAction_ChooseNewThread
   // #ifdef CONFIG_KERNEL_MCS

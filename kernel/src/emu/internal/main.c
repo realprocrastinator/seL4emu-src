@@ -24,7 +24,9 @@
 #include <kernel/boot.h>
 
 #define SOCKET_NAME "/tmp/uds-test.socket"
-#define ROOT_TASK_PATH "/home/kukuku/UNSW/cs9991/sel4-projects/sel4-emu-stub/hello-world_build/emu-images/hello-world-image-x86_64-pc99-emu"
+// #define ROOT_TASK_PATH "/home/kukuku/UNSW/cs9991/sel4-projects/sel4-emu-stub/hello-world_build/emu-images/hello-world-image-x86_64-pc99-emu"
+#define ROOT_TASK_PATH "/home/kukuku/UNSW/cs9991/sel4-projects/sel4-emu-stub/capabilities_build/emu-images/capabilities-image-x86_64-pc99-emu"
+// #define ROOT_TASK_PATH "/home/kukuku/UNSW/cs9991/sel4-projects/sel4-emu-stub/ipc_build/emu-images/capdl-loader-image-x86_64-pc99-emu"
 #define EMUPMEM_FILE "/seL4emu_pmem"
 
 static void cleanup_onexit() {
@@ -176,9 +178,11 @@ int main() {
     
   } else if (pid == 0) {
     /* pass the boot info to the roottask */
-    execve(ROOT_TASK_PATH, NULL, NULL);
+    if (execve(ROOT_TASK_PATH, NULL, NULL) < 0 ) {
+      perror("execve");
+    }
   } else {
-    perror("fork: failed");
+    perror("fork");
     goto cleanup_exit;
   }
 

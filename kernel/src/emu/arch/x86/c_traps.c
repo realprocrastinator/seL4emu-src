@@ -12,6 +12,7 @@
 #include <machine/debug.h>
 #include <machine/fpu.h>
 #include <model/statedata.h>
+#include <assert.h>
 // #include <sel4/arch/vmenter.h>
 
 // #include <benchmark/benchmark_track.h>
@@ -26,8 +27,8 @@
 //     ARCH_NODE_STATE(x86KSPendingInterrupt) = irq;
 // }
 
-// void c_handle_interrupt(int irq, int syscall)
-// {
+void c_handle_interrupt(int irq, int syscall)
+{
 //     /* need to run this first as the NODE_LOCK code might end up as a function call
 //      * with a return, and we need to make sure returns are not exploitable yet
 //      * on x64 this code ran already */
@@ -42,64 +43,69 @@
 
 //     c_entry_hook();
 
-//     if (irq == int_unimpl_dev) {
-//         handleFPUFault();
-// #ifdef TRACK_KERNEL_ENTRIES
-//         ksKernelEntry.path = Entry_UnimplementedDevice;
-//         ksKernelEntry.word = irq;
-// #endif
-//     } else if (irq == int_page_fault) {
-//         /* Error code is in Error. Pull out bit 5, which is whether it was instruction or data */
-//         vm_fault_type_t type = (NODE_STATE(ksCurThread)->tcbArch.tcbContext.registers[Error] >>
-//         4u) & 1u;
-// #ifdef TRACK_KERNEL_ENTRIES
-//         ksKernelEntry.path = Entry_VMFault;
-//         ksKernelEntry.word = type;
-// #endif
-//         handleVMFaultEvent(type);
-// #ifdef CONFIG_HARDWARE_DEBUG_API
-//     } else if (irq == int_debug || irq == int_software_break_request) {
-//         /* Debug exception */
-// #ifdef TRACK_KERNEL_ENTRIES
-//         ksKernelEntry.path = Entry_DebugFault;
-//         ksKernelEntry.word = NODE_STATE(ksCurThread)->tcbArch.tcbContext.registers[FaultIP];
-// #endif
-//         handleUserLevelDebugException(irq);
-// #endif /* CONFIG_HARDWARE_DEBUG_API */
-//     } else if (irq < int_irq_min) {
-// #ifdef TRACK_KERNEL_ENTRIES
-//         ksKernelEntry.path = Entry_UserLevelFault;
-//         ksKernelEntry.word = irq;
-// #endif
-//         handleUserLevelFault(irq, NODE_STATE(ksCurThread)->tcbArch.tcbContext.registers[Error]);
-//     } else if (likely(irq < int_trap_min)) {
-//         ARCH_NODE_STATE(x86KScurInterrupt) = irq;
-// #ifdef TRACK_KERNEL_ENTRIES
-//         ksKernelEntry.path = Entry_Interrupt;
-//         ksKernelEntry.word = irq;
-// #endif
-//         handleInterruptEntry();
-//         /* check for other pending interrupts */
-//         receivePendingIRQ();
-//     } else if (irq == int_spurious) {
-//         /* fall through to restore_user_context and do nothing */
-//     } else {
-//         /* Interpret a trap as an unknown syscall */
-//         /* Adjust FaultIP to point to trapping INT
-//          * instruction by subtracting 2 */
-//         int sys_num;
-//         NODE_STATE(ksCurThread)->tcbArch.tcbContext.registers[FaultIP] -= 2;
-//         /* trap number is MSBs of the syscall number and the LSBS of EAX */
-//         sys_num = (irq << 24) | (syscall & 0x00ffffff);
-// #ifdef TRACK_KERNEL_ENTRIES
-//         ksKernelEntry.path = Entry_UnknownSyscall;
-//         ksKernelEntry.word = sys_num;
-// #endif
-//         handleUnknownSyscall(sys_num);
-//     }
+    if (irq == int_unimpl_dev) {
+        assert(!"Not implemented yet!");
+        // handleFPUFault();
+#ifdef TRACK_KERNEL_ENTRIES
+        ksKernelEntry.path = Entry_UnimplementedDevice;
+        ksKernelEntry.word = irq;
+#endif
+    } else if (irq == int_page_fault) {
+        /* Error code is in Error. Pull out bit 5, which is whether it was instruction or data */
+        vm_fault_type_t type = (NODE_STATE(ksCurThread)->tcbArch.tcbContext.registers[Error] >>
+        4u) & 1u;
+#ifdef TRACK_KERNEL_ENTRIES
+        ksKernelEntry.path = Entry_VMFault;
+        ksKernelEntry.word = type;
+#endif
+        handleVMFaultEvent(type);
+#ifdef CONFIG_HARDWARE_DEBUG_API
+    } else if (irq == int_debug || irq == int_software_break_request) {
+        /* Debug exception */
+#ifdef TRACK_KERNEL_ENTRIES
+        assert(!"Not implemented yet!");
+        ksKernelEntry.path = Entry_DebugFault;
+        ksKernelEntry.word = NODE_STATE(ksCurThread)->tcbArch.tcbContext.registers[FaultIP];
+#endif
+        // handleUserLevelDebugException(irq);
+#endif /* CONFIG_HARDWARE_DEBUG_API */
+    } else if (irq < int_irq_min) {
+#ifdef TRACK_KERNEL_ENTRIES
+        assert(!"Not implemented yet!");
+        ksKernelEntry.path = Entry_UserLevelFault;
+        ksKernelEntry.word = irq;
+#endif
+        handleUserLevelFault(irq, NODE_STATE(ksCurThread)->tcbArch.tcbContext.registers[Error]);
+    } else if (likely(irq < int_trap_min)) {
+        assert(!"Not implemented yet!");
+        ARCH_NODE_STATE(x86KScurInterrupt) = irq;
+#ifdef TRACK_KERNEL_ENTRIES
+        ksKernelEntry.path = Entry_Interrupt;
+        ksKernelEntry.word = irq;
+#endif
+        // handleInterruptEntry();
+
+        /* check for other pending interrupts */
+        // receivePendingIRQ();
+    } else if (irq == int_spurious) {
+        /* fall through to restore_user_context and do nothing */
+    } else {
+        /* Interpret a trap as an unknown syscall */
+        /* Adjust FaultIP to point to trapping INT
+         * instruction by subtracting 2 */
+        int sys_num;
+        NODE_STATE(ksCurThread)->tcbArch.tcbContext.registers[FaultIP] -= 2;
+        /* trap number is MSBs of the syscall number and the LSBS of EAX */
+        sys_num = (irq << 24) | (syscall & 0x00ffffff);
+#ifdef TRACK_KERNEL_ENTRIES
+        ksKernelEntry.path = Entry_UnknownSyscall;
+        ksKernelEntry.word = sys_num;
+#endif
+        handleUnknownSyscall(sys_num);
+    }
 //     restore_user_context();
 //     UNREACHABLE();
-// }
+}
 
 void slowpath(syscall_t syscall) {
 
@@ -158,10 +164,10 @@ void c_handle_syscall(word_t cptr, word_t msgInfo, syscall_t syscall)
   // TODO(Jiawei): re-implement this function
   // c_entry_hook();
 
-#ifdef TRACK_KERNEL_ENTRIES
+// #ifdef TRACK_KERNEL_ENTRIES
   // benchmark_debug_syscall_start(cptr, msgInfo, syscall);
   // ksKernelEntry.is_fastpath = 1;
-#endif /* TRACK_KERNEL_ENTRIES */
+// #endif /* TRACK_KERNEL_ENTRIES */
 
   if (config_set(CONFIG_SYSENTER)) {
     /* increment NextIP to skip sysenter */
@@ -173,15 +179,17 @@ void c_handle_syscall(word_t cptr, word_t msgInfo, syscall_t syscall)
 
 #ifdef CONFIG_FASTPATH
   if (syscall == (syscall_t)SysCall) {
-    assert(!"Not implemented yet");
-    //         fastpath_call(cptr, msgInfo);
+    // assert(!"Not implemented yet");
+    fastpath_call(cptr, msgInfo);
+    return;
     // UNREACHABLE();
-    //     } else if (syscall == (syscall_t)SysReplyRecv) {
-    // #ifdef CONFIG_KERNEL_MCS
-    //         fastpath_reply_recv(cptr, msgInfo, reply);
-    // #else
-    //         fastpath_reply_recv(cptr, msgInfo);
-    // #endif
+  } else if (syscall == (syscall_t)SysReplyRecv) {
+#ifdef CONFIG_KERNEL_MCS
+    // fastpath_reply_recv(cptr, msgInfo, reply);
+#else
+    fastpath_reply_recv(cptr, msgInfo);
+    return;
+#endif
     // UNREACHABLE();
   }
 #endif /* CONFIG_FASTPATH */

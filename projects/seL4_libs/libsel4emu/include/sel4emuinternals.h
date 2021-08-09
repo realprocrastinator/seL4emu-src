@@ -19,7 +19,7 @@ typedef struct seL4emu_init_state seL4emu_init_state_t;
  * This structure is used during the initial bootstrap of the
  * emulation framework.
  */
-static seL4emu_init_state_t seL4emu_g_initstate;
+extern seL4emu_init_state_t seL4emu_g_initstate;
 
 #define ST_GET_IPCBUFPTR(state) ((&state)->ipcbuf_ptr)
 #define ST_GET_BOOTINFOPTR(state) ((&state)->bootinfo_ptr)
@@ -61,4 +61,4 @@ static inline void seL4emu_initstate(void) {
  * and initial routine by seL4runtime, and there is no where we can
  * report the error and exit.
  */
-void seL4emu_internal_setup(seL4_BootInfo **bootinfo);
+void seL4emu_internal_setup(seL4_BootInfo **bootinfo, seL4_IPCBuffer **ipc_buffer);

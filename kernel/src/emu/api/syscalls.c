@@ -351,14 +351,14 @@ exception_t handleUnknownSyscall(word_t w) {
 
 exception_t handleUserLevelFault(word_t w_a, word_t w_b) {
   // MCS_DO_IF_BUDGET({
-  //     current_fault = seL4_Fault_UserException_new(w_a, w_b);
-  //     handleFault(NODE_STATE(ksCurThread));
+  current_fault = seL4_Fault_UserException_new(w_a, w_b);
+  handleFault(NODE_STATE(ksCurThread));
   // })
   // schedule();
   // activateThread();
 
-  //     current_fault = seL4_Fault_UserException_new(w_a, w_b);
-  //     handleFault(NODE_STATE(ksCurThread));
+  current_fault = seL4_Fault_UserException_new(w_a, w_b);
+  handleFault(NODE_STATE(ksCurThread));
 
   return EXCEPTION_NONE;
 }
@@ -366,11 +366,10 @@ exception_t handleUserLevelFault(word_t w_a, word_t w_b) {
 exception_t handleVMFaultEvent(vm_fault_type_t vm_faultType) {
   // MCS_DO_IF_BUDGET({
 
-  //     exception_t status = handleVMFault(NODE_STATE(ksCurThread), vm_faultType);
-  //     if (status != EXCEPTION_NONE)
-  //     {
-  //         handleFault(NODE_STATE(ksCurThread));
-  //     }
+  exception_t status = handleVMFault(NODE_STATE(ksCurThread), vm_faultType);
+  if (status != EXCEPTION_NONE) {
+    handleFault(NODE_STATE(ksCurThread));
+  }
   // })
 
   // schedule();
@@ -387,80 +386,78 @@ exception_t handleVMFaultEvent(vm_fault_type_t vm_faultType) {
 static exception_t handleInvocation(bool_t isCall, bool_t isBlocking)
 #endif
 {
-  //     seL4_MessageInfo_t info;
-  //     lookupCapAndSlot_ret_t lu_ret;
-  //     word_t *buffer;
-  //     exception_t status;
-  //     word_t length;
-  //     tcb_t *thread;
+  seL4_MessageInfo_t info;
+  lookupCapAndSlot_ret_t lu_ret;
+  word_t *buffer;
+  exception_t status;
+  word_t length;
+  tcb_t *thread;
 
-  //     thread = NODE_STATE(ksCurThread);
+  printf("DEBUG: Kernel calling handle Invocation.\n");
 
-  //     info = messageInfoFromWord(getRegister(thread, msgInfoRegister));
-  // #ifndef CONFIG_KERNEL_MCS
-  //     cptr_t cptr = getRegister(thread, capRegister);
-  // #endif
+  thread = NODE_STATE(ksCurThread);
 
-  //     /* faulting section */
-  //     lu_ret = lookupCapAndSlot(thread, cptr);
+  info = messageInfoFromWord(getRegister(thread, msgInfoRegister));
+#ifndef CONFIG_KERNEL_MCS
+  cptr_t cptr = getRegister(thread, capRegister);
+#endif
 
-  //     if (unlikely(lu_ret.status != EXCEPTION_NONE)) {
-  //         userError("Invocation of invalid cap #%lu.", cptr);
-  //         current_fault = seL4_Fault_CapFault_new(cptr, false);
+  /* faulting section */
+  lu_ret = lookupCapAndSlot(thread, cptr);
 
-  //         if (isBlocking) {
-  //             handleFault(thread);
-  //         }
+  if (unlikely(lu_ret.status != EXCEPTION_NONE)) {
+    userError("Invocation of invalid cap #%lu.", cptr);
+    current_fault = seL4_Fault_CapFault_new(cptr, false);
 
-  //         return EXCEPTION_NONE;
-  //     }
+    if (isBlocking) {
+      handleFault(thread);
+    }
 
-  //     buffer = lookupIPCBuffer(false, thread);
+    return EXCEPTION_NONE;
+  }
 
-  //     status = lookupExtraCaps(thread, buffer, info);
+  buffer = lookupIPCBuffer(false, thread);
 
-  //     if (unlikely(status != EXCEPTION_NONE)) {
-  //         userError("Lookup of extra caps failed.");
-  //         if (isBlocking) {
-  //             handleFault(thread);
-  //         }
-  //         return EXCEPTION_NONE;
-  //     }
+  status = lookupExtraCaps(thread, buffer, info);
 
-  //     /* Syscall error/Preemptible section */
-  //     length = seL4_MessageInfo_get_length(info);
-  //     if (unlikely(length > n_msgRegisters && !buffer)) {
-  //         length = n_msgRegisters;
-  //     }
-  // #ifdef CONFIG_KERNEL_MCS
-  //     status = decodeInvocation(seL4_MessageInfo_get_label(info), length,
-  //                               cptr, lu_ret.slot, lu_ret.cap,
-  //                               isBlocking, isCall,
-  //                               canDonate, firstPhase, buffer);
-  // #else
-  //     status = decodeInvocation(seL4_MessageInfo_get_label(info), length,
-  //                               cptr, lu_ret.slot, lu_ret.cap,
-  //                               isBlocking, isCall, buffer);
-  // #endif
+  if (unlikely(status != EXCEPTION_NONE)) {
+    userError("Lookup of extra caps failed.");
+    if (isBlocking) {
+      handleFault(thread);
+    }
+    return EXCEPTION_NONE;
+  }
 
-  //     if (unlikely(status == EXCEPTION_PREEMPTED)) {
-  //         return status;
-  //     }
+  /* Syscall error/Preemptible section */
+  length = seL4_MessageInfo_get_length(info);
+  if (unlikely(length > n_msgRegisters && !buffer)) {
+    length = n_msgRegisters;
+  }
+#ifdef CONFIG_KERNEL_MCS
+  status = decodeInvocation(seL4_MessageInfo_get_label(info), length, cptr, lu_ret.slot, lu_ret.cap,
+                            isBlocking, isCall, canDonate, firstPhase, buffer);
+#else
+  status = decodeInvocation(seL4_MessageInfo_get_label(info), length, cptr, lu_ret.slot, lu_ret.cap,
+                            isBlocking, isCall, buffer);
+#endif
 
-  //     if (unlikely(status == EXCEPTION_SYSCALL_ERROR)) {
-  //         if (isCall) {
-  //             replyFromKernel_error(thread);
-  //         }
-  //         return EXCEPTION_NONE;
-  //     }
+  if (unlikely(status == EXCEPTION_PREEMPTED)) {
+    return status;
+  }
 
-  //     if (unlikely(
-  //             thread_state_get_tsType(thread->tcbState) == ThreadState_Restart)) {
-  //         if (isCall) {
-  //             replyFromKernel_success_empty(thread);
-  //         }
-  //         setThreadState(thread, ThreadState_Running);
-  //     }
+  if (unlikely(status == EXCEPTION_SYSCALL_ERROR)) {
+    if (isCall) {
+      replyFromKernel_error(thread);
+    }
+    return EXCEPTION_NONE;
+  }
+
+  if (unlikely(thread_state_get_tsType(thread->tcbState) == ThreadState_Restart)) {
+    if (isCall) {
+      replyFromKernel_success_empty(thread);
+    }
+    setThreadState(thread, ThreadState_Running);
+  }
 
   return EXCEPTION_NONE;
 }
@@ -468,56 +465,56 @@ static exception_t handleInvocation(bool_t isCall, bool_t isBlocking)
 #ifdef CONFIG_KERNEL_MCS
 #error "Not supported yet!"
 // static inline lookupCap_ret_t lookupReply(void) {
-  // word_t replyCPtr = getRegister(NODE_STATE(ksCurThread), replyRegister);
-  // lookupCap_ret_t lu_ret = lookupCap(NODE_STATE(ksCurThread), replyCPtr);
-  // if (unlikely(lu_ret.status != EXCEPTION_NONE)) {
-  //     userError("Reply cap lookup failed");
-  //     current_fault = seL4_Fault_CapFault_new(replyCPtr, true);
-  //     handleFault(NODE_STATE(ksCurThread));
-  //     return lu_ret;
-  // }
+// word_t replyCPtr = getRegister(NODE_STATE(ksCurThread), replyRegister);
+// lookupCap_ret_t lu_ret = lookupCap(NODE_STATE(ksCurThread), replyCPtr);
+// if (unlikely(lu_ret.status != EXCEPTION_NONE)) {
+//     userError("Reply cap lookup failed");
+//     current_fault = seL4_Fault_CapFault_new(replyCPtr, true);
+//     handleFault(NODE_STATE(ksCurThread));
+//     return lu_ret;
+// }
 
-  // if (unlikely(cap_get_capType(lu_ret.cap) != cap_reply_cap)) {
-  //     userError("Cap in reply slot is not a reply");
-  //     current_fault = seL4_Fault_CapFault_new(replyCPtr, true);
-  //     handleFault(NODE_STATE(ksCurThread));
-  //     lu_ret.status = EXCEPTION_FAULT;
-  //     return lu_ret;
-  // }
+// if (unlikely(cap_get_capType(lu_ret.cap) != cap_reply_cap)) {
+//     userError("Cap in reply slot is not a reply");
+//     current_fault = seL4_Fault_CapFault_new(replyCPtr, true);
+//     handleFault(NODE_STATE(ksCurThread));
+//     lu_ret.status = EXCEPTION_FAULT;
+//     return lu_ret;
+// }
 
 //   return lu_ret;
 // }
 #else
 static void handleReply(void) {
-  // cte_t *callerSlot;
-  // cap_t callerCap;
+  cte_t *callerSlot;
+  cap_t callerCap;
 
-  // callerSlot = TCB_PTR_CTE_PTR(NODE_STATE(ksCurThread), tcbCaller);
-  // callerCap = callerSlot->cap;
+  callerSlot = TCB_PTR_CTE_PTR(NODE_STATE(ksCurThread), tcbCaller);
+  callerCap = callerSlot->cap;
 
-  // switch (cap_get_capType(callerCap)) {
-  // case cap_reply_cap: {
-  //     tcb_t *caller;
+  switch (cap_get_capType(callerCap)) {
+  case cap_reply_cap: {
+    tcb_t *caller;
 
-  //     if (cap_reply_cap_get_capReplyMaster(callerCap)) {
-  //         break;
-  //     }
-  //     caller = TCB_PTR(cap_reply_cap_get_capTCBPtr(callerCap));
-  //     /* Haskell error:
-  //      * "handleReply: caller must not be the current thread" */
-  //     assert(caller != NODE_STATE(ksCurThread));
-  //     doReplyTransfer(NODE_STATE(ksCurThread), caller, callerSlot,
-  //                     cap_reply_cap_get_capReplyCanGrant(callerCap));
-  //     return;
-  // }
+    if (cap_reply_cap_get_capReplyMaster(callerCap)) {
+      break;
+    }
+    caller = TCB_PTR(cap_reply_cap_get_capTCBPtr(callerCap));
+    /* Haskell error:
+     * "handleReply: caller must not be the current thread" */
+    assert(caller != NODE_STATE(ksCurThread));
+    doReplyTransfer(NODE_STATE(ksCurThread), caller, callerSlot,
+                    cap_reply_cap_get_capReplyCanGrant(callerCap));
+    return;
+  }
 
-  // case cap_null_cap:
-  //     userError("Attempted reply operation when no reply cap present.");
-  //     return;
+  case cap_null_cap:
+    userError("Attempted reply operation when no reply cap present.");
+    return;
 
-  // default:
-  //     break;
-  // }
+  default:
+    break;
+  }
 
   fail("handleReply: invalid caller cap");
 }
@@ -530,90 +527,90 @@ static void handleReply(void) {
 static void handleRecv(bool_t isBlocking)
 #endif
 {
-  //     word_t epCPtr;
-  //     lookupCap_ret_t lu_ret;
+  word_t epCPtr;
+  lookupCap_ret_t lu_ret;
 
-  //     epCPtr = getRegister(NODE_STATE(ksCurThread), capRegister);
+  epCPtr = getRegister(NODE_STATE(ksCurThread), capRegister);
 
-  //     lu_ret = lookupCap(NODE_STATE(ksCurThread), epCPtr);
+  lu_ret = lookupCap(NODE_STATE(ksCurThread), epCPtr);
 
-  //     if (unlikely(lu_ret.status != EXCEPTION_NONE)) {
-  //         /* current_lookup_fault has been set by lookupCap */
-  //         current_fault = seL4_Fault_CapFault_new(epCPtr, true);
-  //         handleFault(NODE_STATE(ksCurThread));
-  //         return;
-  //     }
+  if (unlikely(lu_ret.status != EXCEPTION_NONE)) {
+    /* current_lookup_fault has been set by lookupCap */
+    current_fault = seL4_Fault_CapFault_new(epCPtr, true);
+    handleFault(NODE_STATE(ksCurThread));
+    return;
+  }
 
-  //     switch (cap_get_capType(lu_ret.cap)) {
-  //     case cap_endpoint_cap:
-  //         if (unlikely(!cap_endpoint_cap_get_capCanReceive(lu_ret.cap))) {
-  //             current_lookup_fault = lookup_fault_missing_capability_new(0);
-  //             current_fault = seL4_Fault_CapFault_new(epCPtr, true);
-  //             handleFault(NODE_STATE(ksCurThread));
-  //             break;
-  //         }
+  switch (cap_get_capType(lu_ret.cap)) {
+  case cap_endpoint_cap:
+    if (unlikely(!cap_endpoint_cap_get_capCanReceive(lu_ret.cap))) {
+      current_lookup_fault = lookup_fault_missing_capability_new(0);
+      current_fault = seL4_Fault_CapFault_new(epCPtr, true);
+      handleFault(NODE_STATE(ksCurThread));
+      break;
+    }
 
-  // #ifdef CONFIG_KERNEL_MCS
-  //         cap_t ep_cap = lu_ret.cap;
-  //         cap_t reply_cap = cap_null_cap_new();
-  //         if (canReply) {
-  //             lu_ret = lookupReply();
-  //             if (lu_ret.status != EXCEPTION_NONE) {
-  //                 return;
-  //             } else {
-  //                 reply_cap = lu_ret.cap;
-  //             }
-  //         }
-  //         receiveIPC(NODE_STATE(ksCurThread), ep_cap, isBlocking, reply_cap);
-  // #else
-  //         deleteCallerCap(NODE_STATE(ksCurThread));
-  //         receiveIPC(NODE_STATE(ksCurThread), lu_ret.cap, isBlocking);
-  // #endif
-  //         break;
+#ifdef CONFIG_KERNEL_MCS
+    cap_t ep_cap = lu_ret.cap;
+    cap_t reply_cap = cap_null_cap_new();
+    if (canReply) {
+      lu_ret = lookupReply();
+      if (lu_ret.status != EXCEPTION_NONE) {
+        return;
+      } else {
+        reply_cap = lu_ret.cap;
+      }
+    }
+    receiveIPC(NODE_STATE(ksCurThread), ep_cap, isBlocking, reply_cap);
+#else
+    deleteCallerCap(NODE_STATE(ksCurThread));
+    receiveIPC(NODE_STATE(ksCurThread), lu_ret.cap, isBlocking);
+#endif
+    break;
 
-  //     case cap_notification_cap: {
-  //         notification_t *ntfnPtr;
-  //         tcb_t *boundTCB;
-  //         ntfnPtr = NTFN_PTR(cap_notification_cap_get_capNtfnPtr(lu_ret.cap));
-  //         boundTCB = (tcb_t *)notification_ptr_get_ntfnBoundTCB(ntfnPtr);
-  //         if (unlikely(!cap_notification_cap_get_capNtfnCanReceive(lu_ret.cap)
-  //                      || (boundTCB && boundTCB != NODE_STATE(ksCurThread)))) {
-  //             current_lookup_fault = lookup_fault_missing_capability_new(0);
-  //             current_fault = seL4_Fault_CapFault_new(epCPtr, true);
-  //             handleFault(NODE_STATE(ksCurThread));
-  //             break;
-  //         }
+  case cap_notification_cap: {
+    notification_t *ntfnPtr;
+    tcb_t *boundTCB;
+    ntfnPtr = NTFN_PTR(cap_notification_cap_get_capNtfnPtr(lu_ret.cap));
+    boundTCB = (tcb_t *)notification_ptr_get_ntfnBoundTCB(ntfnPtr);
+    if (unlikely(!cap_notification_cap_get_capNtfnCanReceive(lu_ret.cap) ||
+                 (boundTCB && boundTCB != NODE_STATE(ksCurThread)))) {
+      current_lookup_fault = lookup_fault_missing_capability_new(0);
+      current_fault = seL4_Fault_CapFault_new(epCPtr, true);
+      handleFault(NODE_STATE(ksCurThread));
+      break;
+    }
 
-  //         receiveSignal(NODE_STATE(ksCurThread), lu_ret.cap, isBlocking);
-  //         break;
-  //     }
-  //     default:
-  //         current_lookup_fault = lookup_fault_missing_capability_new(0);
-  //         current_fault = seL4_Fault_CapFault_new(epCPtr, true);
-  //         handleFault(NODE_STATE(ksCurThread));
-  //         break;
-  //     }
+    receiveSignal(NODE_STATE(ksCurThread), lu_ret.cap, isBlocking);
+    break;
+  }
+  default:
+    current_lookup_fault = lookup_fault_missing_capability_new(0);
+    current_fault = seL4_Fault_CapFault_new(epCPtr, true);
+    handleFault(NODE_STATE(ksCurThread));
+    break;
+  }
 }
 
 #ifdef CONFIG_KERNEL_MCS
 #error "Not supported yet!"
 // static inline void mcsIRQ(irq_t irq) {
-  // if (IRQT_TO_IRQ(irq) == KERNEL_TIMER_IRQ) {
-  //     /* if this is a timer irq we must update the time as we need to reprogram the timer, and we
-  //      * can't lose the time that has just been used by the kernel. */
-  //     updateTimestamp();
-  // }
+// if (IRQT_TO_IRQ(irq) == KERNEL_TIMER_IRQ) {
+//     /* if this is a timer irq we must update the time as we need to reprogram the timer, and we
+//      * can't lose the time that has just been used by the kernel. */
+//     updateTimestamp();
+// }
 
-  // /* at this point we could be handling a timer interrupt which actually ends the current
-  //  * threads timeslice. However, preemption is possible on revoke, which could have deleted
-  //  * the current thread and/or the current scheduling context, rendering them invalid. */
-  // if (isSchedulable(NODE_STATE(ksCurThread))) {
-  //     /* if the thread is schedulable, the tcb and scheduling context are still valid */
-  //     checkBudget();
-  // } else if (NODE_STATE(ksCurSC)->scRefillMax) {
-  //     /* otherwise, if the thread is not schedulable, the SC could be valid - charge it if so */
-  //     chargeBudget(NODE_STATE(ksConsumed), false, CURRENT_CPU_INDEX(), true);
-  // }
+// /* at this point we could be handling a timer interrupt which actually ends the current
+//  * threads timeslice. However, preemption is possible on revoke, which could have deleted
+//  * the current thread and/or the current scheduling context, rendering them invalid. */
+// if (isSchedulable(NODE_STATE(ksCurThread))) {
+//     /* if the thread is schedulable, the tcb and scheduling context are still valid */
+//     checkBudget();
+// } else if (NODE_STATE(ksCurSC)->scRefillMax) {
+//     /* otherwise, if the thread is not schedulable, the SC could be valid - charge it if so */
+//     chargeBudget(NODE_STATE(ksConsumed), false, CURRENT_CPU_INDEX(), true);
+// }
 // }
 #else
 #define handleRecv(isBlocking, canReply) handleRecv(isBlocking)
@@ -639,60 +636,185 @@ static void handleYield(void) {
 exception_t handleSyscall(syscall_t syscall) {
   exception_t ret;
   irq_t irq;
-  MCS_DO_IF_BUDGET({
-    switch (syscall) {
-    case SysSend:
-      ret = handleInvocation(false, true, false, false,
-                             getRegister(NODE_STATE(ksCurThread), capRegister));
-      if (unlikely(ret != EXCEPTION_NONE)) {
-        irq = getActiveIRQ();
-        if (IRQT_TO_IRQ(irq) != IRQT_TO_IRQ(irqInvalid)) {
-          mcsIRQ(irq);
-          // handleInterrupt(irq);
-          Arch_finaliseInterrupt();
-        }
+  switch (syscall) {
+  case SysSend:
+    ret = handleInvocation(false, true, false, false,
+                           getRegister(NODE_STATE(ksCurThread), capRegister));
+    if (unlikely(ret != EXCEPTION_NONE)) {
+      irq = getActiveIRQ();
+      if (IRQT_TO_IRQ(irq) != IRQT_TO_IRQ(irqInvalid)) {
+        mcsIRQ(irq);
+        handleInterrupt(irq);
+        Arch_finaliseInterrupt();
       }
+    }
 
-      break;
+    break;
 
-      //         case SysNBSend:
-      //             ret = handleInvocation(false, false, false, false,
-      //             getRegister(NODE_STATE(ksCurThread), capRegister)); if (unlikely(ret !=
-      //             EXCEPTION_NONE)) {
-      //                 irq = getActiveIRQ();
-      //                 if (IRQT_TO_IRQ(irq) != IRQT_TO_IRQ(irqInvalid)) {
-      //                     mcsIRQ(irq);
-      //                     handleInterrupt(irq);
-      //                     Arch_finaliseInterrupt();
-      //                 }
-      //             }
-      //             break;
+  case SysNBSend:
+    ret = handleInvocation(false, false, false, false,
+                           getRegister(NODE_STATE(ksCurThread), capRegister));
+    if (unlikely(ret != EXCEPTION_NONE)) {
+      irq = getActiveIRQ();
+      if (IRQT_TO_IRQ(irq) != IRQT_TO_IRQ(irqInvalid)) {
+        mcsIRQ(irq);
+        handleInterrupt(irq);
+        Arch_finaliseInterrupt();
+      }
+    }
+    break;
 
-      //         case SysCall:
-      //             ret = handleInvocation(true, true, true, false,
-      //             getRegister(NODE_STATE(ksCurThread), capRegister)); if (unlikely(ret !=
-      //             EXCEPTION_NONE)) {
-      //                 irq = getActiveIRQ();
-      //                 if (IRQT_TO_IRQ(irq) != IRQT_TO_IRQ(irqInvalid)) {
-      //                     mcsIRQ(irq);
-      //                     handleInterrupt(irq);
-      //                     Arch_finaliseInterrupt();
-      //                 }
-      //             }
-      //             break;
+  case SysCall:
+    printf("DEBUG: Kernel handle SysCall.\n");
+    ret = handleInvocation(true, true, true, false,
+                           getRegister(NODE_STATE(ksCurThread), capRegister));
+    if (unlikely(ret != EXCEPTION_NONE)) {
+      irq = getActiveIRQ();
+      if (IRQT_TO_IRQ(irq) != IRQT_TO_IRQ(irqInvalid)) {
+        mcsIRQ(irq);
+        handleInterrupt(irq);
+        Arch_finaliseInterrupt();
+      }
+    }
+    break;
 
-    case SysRecv:
-      handleRecv(true, true);
-      break;
+  case SysRecv:
+    handleRecv(true, true);
+    break;
 #ifndef CONFIG_KERNEL_MCS
-    case SysReply:
-      handleReply();
-      break;
+  case SysReply:
+    handleReply();
+    break;
 
-    case SysReplyRecv:
-      handleReply();
-      handleRecv(true, true);
+  case SysReplyRecv:
+    handleReply();
+    handleRecv(true, true);
+    break;
+
+#else /* CONFIG_KERNEL_MCS */
+  case SysWait:
+    handleRecv(true, false);
+    break;
+
+  case SysNBWait:
+    handleRecv(false, false);
+    break;
+  case SysReplyRecv: {
+    cptr_t reply = getRegister(NODE_STATE(ksCurThread), replyRegister);
+    ret = handleInvocation(false, false, true, true, reply);
+    /* reply cannot error and is not preemptible */
+    assert(ret == EXCEPTION_NONE);
+    handleRecv(true, true);
+    break;
+  }
+
+  case SysNBSendRecv: {
+    cptr_t dest = getNBSendRecvDest();
+    ret = handleInvocation(false, false, true, true, dest);
+    if (unlikely(ret != EXCEPTION_NONE)) {
+      irq = getActiveIRQ();
+      if (IRQT_TO_IRQ(irq) != IRQT_TO_IRQ(irqInvalid)) {
+        mcsIRQ(irq);
+        handleInterrupt(irq);
+        Arch_finaliseInterrupt();
+      }
       break;
+    }
+    handleRecv(true, true);
+    break;
+  }
+
+  case SysNBSendWait:
+    ret = handleInvocation(false, false, true, true,
+                           getRegister(NODE_STATE(ksCurThread), replyRegister));
+    if (unlikely(ret != EXCEPTION_NONE)) {
+      irq = getActiveIRQ();
+      if (IRQT_TO_IRQ(irq) != IRQT_TO_IRQ(irqInvalid)) {
+        mcsIRQ(irq);
+        handleInterrupt(irq);
+        Arch_finaliseInterrupt();
+      }
+      break;
+    }
+    handleRecv(true, false);
+    break;
+#endif
+  case SysNBRecv:
+    handleRecv(false, true);
+    break;
+
+  case SysYield:
+    handleYield();
+    break;
+
+  default:
+    fail("Invalid syscall");
+  }
+
+  schedule();
+  activateThread();
+
+  return EXCEPTION_NONE;
+}
+
+// exception_t handleSyscall(syscall_t syscall)
+// {
+//     exception_t ret;
+//     irq_t irq;
+//     // MCS_DO_IF_BUDGET({
+//         switch (syscall)
+//         {
+//         case SysSend:
+//             ret = handleInvocation(false, true, false, false,
+//             getRegister(NODE_STATE(ksCurThread), capRegister)); if (unlikely(ret !=
+//             EXCEPTION_NONE)) {
+//                 irq = getActiveIRQ();
+//                 if (IRQT_TO_IRQ(irq) != IRQT_TO_IRQ(irqInvalid)) {
+//                     mcsIRQ(irq);
+//                     handleInterrupt(irq);
+//                     Arch_finaliseInterrupt();
+//                 }
+//             }
+
+//             break;
+
+//         case SysNBSend:
+//             ret = handleInvocation(false, false, false, false,
+//             getRegister(NODE_STATE(ksCurThread), capRegister)); if (unlikely(ret !=
+//             EXCEPTION_NONE)) {
+//                 irq = getActiveIRQ();
+//                 if (IRQT_TO_IRQ(irq) != IRQT_TO_IRQ(irqInvalid)) {
+//                     mcsIRQ(irq);
+//                     handleInterrupt(irq);
+//                     Arch_finaliseInterrupt();
+//                 }
+//             }
+//             break;
+
+//         case SysCall:
+//             ret = handleInvocation(true, true, true, false, getRegister(NODE_STATE(ksCurThread),
+//             capRegister)); if (unlikely(ret != EXCEPTION_NONE)) {
+//                 irq = getActiveIRQ();
+//                 if (IRQT_TO_IRQ(irq) != IRQT_TO_IRQ(irqInvalid)) {
+//                     mcsIRQ(irq);
+//                     handleInterrupt(irq);
+//                     Arch_finaliseInterrupt();
+//                 }
+//             }
+//             break;
+
+//         case SysRecv:
+//             handleRecv(true, true);
+//             break;
+// #ifndef CONFIG_KERNEL_MCS
+//         case SysReply:
+//             handleReply();
+//             break;
+
+//         case SysReplyRecv:
+//             handleReply();
+//             handleRecv(true, true);
+//             break;
 
 // #else /* CONFIG_KERNEL_MCS */
 //         case SysWait:
@@ -740,22 +862,23 @@ exception_t handleSyscall(syscall_t syscall) {
 //             }
 //             handleRecv(true, false);
 //             break;
-#endif
-    case SysNBRecv:
-      handleRecv(false, true);
-      break;
+// #endif
+//         case SysNBRecv:
+//             handleRecv(false, true);
+//             break;
 
-    case SysYield:
-      handleYield();
-      break;
+//         case SysYield:
+//             handleYield();
+//             break;
 
-      // default:
-      //     fail("Invalid syscall");
-    }
-  })
+//         default:
+//             fail("Invalid syscall");
+//         }
 
-  //     schedule();
-  //     activateThread();
+//     })
 
-  return EXCEPTION_NONE;
-}
+//     schedule();
+//     activateThread();
+
+//     return EXCEPTION_NONE;
+// }

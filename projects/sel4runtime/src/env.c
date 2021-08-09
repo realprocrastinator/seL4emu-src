@@ -318,22 +318,11 @@ static void parse_auxv(auxv_t const auxv[])
         }
         case AT_SEL4_BOOT_INFO: {
             seL4_BootInfo *bootinfo = auxv[i].a_un.a_ptr;
-            if (bootinfo == SEL4RUNTIME_NULL) {
-// #ifdef CONFIG_SEL4_USE_EMULATION
-//                 /* if we are using the emulation, and haven't found 
-//                 * a good way to let the server set up a frame of bootinfo and IPCbuffer for us, we just do ourselves. 
-//                 * */
-//                 env.bootinfo = &emubootinfo;
-//                 if (!emubootinfo.ipcBuffer) {
-//                     emubootinfo.ipcBuffer = (seL4_IPCBuffer *) emuipcbuffer;
-//                 }
-//                 env.initial_thread_ipc_buffer = emubootinfo.ipcBuffer;
-//                 env.initial_thread_tcb = seL4_CapInitThreadTCB;    
-// #endif          
+            if (bootinfo == SEL4RUNTIME_NULL) {  
                 break;
             }
             env.bootinfo = bootinfo;
-            // env.initial_thread_ipc_buffer = bootinfo->ipcBuffer;
+            env.initial_thread_ipc_buffer = bootinfo->ipcBuffer;
             env.initial_thread_tcb = seL4_CapInitThreadTCB;
             break;
         }
@@ -481,6 +470,6 @@ static int is_initial_thread(void)
  */
 #ifdef CONFIG_SEL4_USE_EMULATION    
 static void seL4emu_sel4runtime_internal_setup(void) {
-    seL4emu_internal_setup(&env.bootinfo);
+    seL4emu_internal_setup(&env.bootinfo, &env.initial_thread_ipc_buffer);
 }
 #endif

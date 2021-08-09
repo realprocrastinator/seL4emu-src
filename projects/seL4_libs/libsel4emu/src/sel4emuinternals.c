@@ -13,6 +13,9 @@
 #include <sys/un.h>
 #include <mini_fcntl.h>
 
+/* global structure to memorize the state after runtime env setup for the emulation framework */
+seL4emu_init_state_t seL4emu_g_initstate;
+
 #define EMUPMEM_FILE "/dev/shm/seL4emu_pmem"
 #define BIT(n) (1 << n)
 
@@ -61,7 +64,7 @@ static seL4emu_err_t get_and_map_bootinfo(int socket, seL4_BootInfo **bootinfo) 
   // words[1] is the bootvaddr that kernel decided for us, try map!
   // words[2] is the fd for shared memory
   // words[3] is the fd for mmap offset
-  uintptr_t bootinfo_ptr = msg.words[1];
+  uintptr_t ipcbuf_ptr = msg.words[1];
   int map_fd = msg.words[2];
   size_t offset = msg.words[3];
 
@@ -70,25 +73,28 @@ static seL4emu_err_t get_and_map_bootinfo(int socket, seL4_BootInfo **bootinfo) 
     return SEL4EMU_INIT_OPEN_FAILED;
   }
 
-  // try map an area for bootinfo
-  void *maybe_new = try_map((void *)bootinfo_ptr, BIT(seL4_PageBits), PROT_READ | PROT_WRITE,
+  // try map an area for bootinfo, be aware ipcbuffer is below the bootinfo frame!
+  void *maybe_new = try_map((void *)ipcbuf_ptr, BIT(seL4_PageBits) * 2, PROT_READ | PROT_WRITE,
                             MAP_SHARED, map_fd, offset);
   if (maybe_new == MAP_FAILED) {
     return SEL4EMU_INIT_BIMMAP_FAILED;
   }
 
   // update the ptr
-  *bootinfo = (seL4_BootInfo *)maybe_new;
+  ipcbuf_ptr = (uintptr_t)maybe_new;
+  *bootinfo = (seL4_BootInfo *)(maybe_new + BIT(seL4_PageBits));
+  (*bootinfo)->ipcBuffer = (seL4_IPCBuffer *)ipcbuf_ptr;
 
-  // try access ipcptr data
-  seL4_IPCBuffer *ipcbuf_ptr = (*bootinfo)->ipcBuffer;
+  // DEBUG:
+  for (int i = 0; i < 50; i++)
+    (*bootinfo)->ipcBuffer->msg[i] = 666;
 
   // try map a region for ipc buffer
-  maybe_new = try_map((void *)bootinfo_ptr, BIT(seL4_PageBits), PROT_READ | PROT_WRITE, MAP_SHARED,
-                      map_fd, offset);
-  if (maybe_new == MAP_FAILED) {
-    return SEL4EMU_INIT_IPCBUFMMAP_FAILED;
-  }
+  // maybe_new = try_map((void *)ipcbuf_ptr, BIT(seL4_PageBits), PROT_READ | PROT_WRITE, MAP_SHARED,
+  //                     map_fd, offset + bootinfo_ptr);
+  // if (maybe_new == MAP_FAILED) {
+  //   return SEL4EMU_INIT_IPCBUFMMAP_FAILED;
+  // }
 
   (*bootinfo)->ipcBuffer = (seL4_IPCBuffer *)maybe_new;
 
@@ -179,7 +185,7 @@ static seL4emu_err_t seL4emu_internal_try_setup(void) {
   return err;
 }
 
-void seL4emu_internal_setup(seL4_BootInfo **bootinfo) {
+void seL4emu_internal_setup(seL4_BootInfo **bootinfo, seL4_IPCBuffer **ipc_buffer) {
   seL4emu_err_t err;
 
   seL4emu_initstate();
@@ -192,6 +198,7 @@ void seL4emu_internal_setup(seL4_BootInfo **bootinfo) {
   switch (err) {
   case SEL4EMU_INIT_NOERROR:
     *bootinfo = ST_GET_BOOTINFOPTR(seL4emu_g_initstate);
+    *ipc_buffer = ST_GET_IPCBUFPTR(seL4emu_g_initstate);
     break;
   case SEL4EMU_INIT_SIGNAL_FAILED:
     mini_munmap(ST_GET_IPCBUFPTR(seL4emu_g_initstate), BIT(seL4_PageBits));

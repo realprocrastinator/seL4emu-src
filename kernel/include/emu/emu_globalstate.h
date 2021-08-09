@@ -175,3 +175,5 @@ int seL4emu_bk_tcbptr_insert(pid_t pid, tcb_t *tcbptr);
  * in real seL4.
  */
 void seL4emu_store_user_context(tcb_t *tcb, word_t *regs);
+
+void seL4emu_load_user_context(tcb_t *tcb, word_t *regs);

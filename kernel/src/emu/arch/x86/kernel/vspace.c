@@ -538,27 +538,27 @@ findVSpaceForASID_ret_t findVSpaceForASID(asid_t asid) {
   return ret;
 }
 
-// exception_t handleVMFault(tcb_t *thread, vm_fault_type_t vm_faultType)
-// {
-//     word_t addr;
-//     uint32_t fault;
+exception_t handleVMFault(tcb_t *thread, vm_fault_type_t vm_faultType)
+{
+    word_t addr;
+    uint32_t fault;
 
-//     addr = getFaultAddr();
-//     fault = getRegister(thread, Error);
+    addr = getFaultAddr();
+    fault = getRegister(thread, Error);
 
-//     switch (vm_faultType) {
-//     case X86DataFault:
-//         current_fault = seL4_Fault_VMFault_new(addr, fault, false);
-//         return EXCEPTION_FAULT;
+    switch (vm_faultType) {
+    case X86DataFault:
+        current_fault = seL4_Fault_VMFault_new(addr, fault, false);
+        return EXCEPTION_FAULT;
 
-//     case X86InstructionFault:
-//         current_fault = seL4_Fault_VMFault_new(addr, fault, true);
-//         return EXCEPTION_FAULT;
+    case X86InstructionFault:
+        current_fault = seL4_Fault_VMFault_new(addr, fault, true);
+        return EXCEPTION_FAULT;
 
-//     default:
-//         fail("Invalid VM fault type");
-//     }
-// }
+    default:
+        fail("Invalid VM fault type");
+    }
+}
 
 uint32_t CONST WritableFromVMRights(vm_rights_t vm_rights) {
   switch (vm_rights) {

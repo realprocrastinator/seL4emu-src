@@ -6,11 +6,12 @@
 #include <stdio.h>
 #include <unistd.h>
 // emulation
+#include <emu/emu_common.h>
 #include <emu/emu_globalstate.h>
 #include <emu/emu_ipcmsg.h>
 #include <emu/emu_svc.h>
 
-static int handle_seL4syscalls(seL4emu_ipc_message_t *msg);
+static int handle_seL4syscalls(int sock, seL4emu_ipc_message_t *msg);
 static int handle_internal_request(int sock, seL4emu_ipc_message_t *msg);
 static int handle_send_client_hello(int sock);
 
@@ -22,7 +23,7 @@ int seL4emu_handle_client_ipc(int sock, seL4emu_ipc_message_t *msg) {
     ret = handle_internal_request(sock, msg);
     break;
   case IPC_SEL4:
-    ret = handle_seL4syscalls(msg);
+    ret = handle_seL4syscalls(sock, msg);
     break;
   default:
     // should never reach here
@@ -49,7 +50,7 @@ static int handle_internal_request(int sock, seL4emu_ipc_message_t *msg) {
     break;
   case SEL4EMU_INTERNAL_INIT_FAILED:
     printf("Roottask init failed.\n");
-    // end server loop and shutdown all clients;
+    //TODO(Jiawei): end server loop and shutdown all clients;
     break;
   default:
     assert(!"Not supported yet!");
@@ -59,7 +60,7 @@ static int handle_internal_request(int sock, seL4emu_ipc_message_t *msg) {
   return ret;
 }
 
-static int handle_seL4syscalls(seL4emu_ipc_message_t *msg) {
+static int handle_seL4syscalls(int sock, seL4emu_ipc_message_t *msg) {
   assert(msg->tag == IPC_SEL4);
 
   // unmarshall the msg
@@ -68,10 +69,13 @@ static int handle_seL4syscalls(seL4emu_ipc_message_t *msg) {
   word_t msg_info = seL4emu_get_ipc_register(msg, RSI);
   pid_t pid = (pid_t)seL4emu_get_ipc_data(msg, ID);
 
+  //DEBUG
+  word_t xcap = ((seL4_IPCBuffer *)rootserver.ipc_buf)->caps_or_badges[0];
+
   printf("From=%ld, tag=%lu, len=%lu, sys=%ld, dest/capreg=%lu, msginfo=%lu, msg0=%lu, msg1=%lu, "
-         "msg2=%lu, msg3=%lu\n",
+         "msg2=%lu, msg3=%lu, seL4_GetIPCBuffer->caps_or_badges=%lu\n",
          msg->id, msg->tag, msg->len, syscall, cptr, msg_info, msg->words[R10], msg->words[R8],
-         msg->words[R9], msg->words[R15]);
+         msg->words[R9], msg->words[R15], xcap);
 
   // In the real seL4 system, the `NODE_STATE(ksCurThread)` always points to the current running
   // thread. And in trap.S, we use LOAD_USER_CONTEXT, to point the `rsp` to the use current `tcb`,
@@ -89,6 +93,22 @@ static int handle_seL4syscalls(seL4emu_ipc_message_t *msg) {
   // call c_handle_syscall
   c_handle_syscall(cptr, msg_info, syscall);
 
+  // the fault is placed in the tcb, if we return here, we need to check if 
+  // we should resume the current thread or not by checking the thread state!
+
+  // TODO(Jiawei): as the scheduler is not implemented yet, we just resume!
+
+
+  /* emulates restoring the user context */
+  seL4emu_ipc_message_t reply;
+  reply.tag = IPC_INTERNAL;
+  memcpy(reply.words, curtcb->tcbArch.tcbContext.registers ,sizeof(word_t) * n_contextRegisters);
+
+  if (seL4emu_uds_send(sock, sizeof(reply), &reply) < 0) {
+    fprintf(stderr, "Failed to send bootinfo\n.");
+    return -1;
+  }
+
   return 0;
 }
 
@@ -102,12 +122,14 @@ static int handle_send_client_hello(int sock) {
   msg.tag = IPC_INTERNAL;
   msg.len = 4;
 
-  msg.words[0] = SEL4EMU_INTERNAL_BOOTINFO;
-  msg.words[1] = EMUST_GET_RT_BIREF(seL4emu_g_sysstate);
-  msg.words[2] = EMUST_GET_PMEMFD(seL4emu_g_sysstate);
   void *emu_pbase = EMUST_GET_PMEM_BASEPTR(seL4emu_g_sysstate);
-  word_t bi_paddr = EMUST_GET_EMUP_RT_BIREF(seL4emu_g_sysstate);
-  msg.words[3] = EMUST_PMEM_OFFSET(bi_paddr, emu_pbase);
+  word_t ipc_paddr = EMUST_GET_EMUP_RT_IPCBUFREF(seL4emu_g_sysstate);
+
+  msg.words[0] = SEL4EMU_INTERNAL_BOOTINFO;
+  msg.words[1] = EMUST_GET_RT_IPCBUFREF(seL4emu_g_sysstate);
+  msg.words[2] = EMUST_GET_PMEMFD(seL4emu_g_sysstate);
+  msg.words[3] = EMUST_PMEM_OFFSET(ipc_paddr, emu_pbase);
+  
   if (seL4emu_uds_send(sock, sizeof(msg), &msg) < 0) {
     fprintf(stderr, "Failed to send bootinfo\n.");
     return -1;
