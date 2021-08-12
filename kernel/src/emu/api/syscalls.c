@@ -112,7 +112,8 @@ exception_t handleUnknownSyscall(word_t w) {
   }
 
   if (w == SysDebugNameThread) {
-    printf("DEBUG: SysDebugNameThread, setting thread's name\n.");
+    // DEBUG
+    // fprintf("DEBUG: Kernel emulator: handling SysDebugNameThread.\n");
     /* This is a syscall meant to aid debugging, so if anything goes wrong
      * then assume the system is completely misconfigured and halt */
     const char *name;
@@ -393,7 +394,8 @@ static exception_t handleInvocation(bool_t isCall, bool_t isBlocking)
   word_t length;
   tcb_t *thread;
 
-  printf("DEBUG: Kernel calling handle Invocation.\n");
+  // DEBUG
+  // fprintf(stdout, "DEBUG: Kernel emulator: handling seL4 invocation.\n");
 
   thread = NODE_STATE(ksCurThread);
 
@@ -665,7 +667,8 @@ exception_t handleSyscall(syscall_t syscall) {
     break;
 
   case SysCall:
-    printf("DEBUG: Kernel handle SysCall.\n");
+    // DEBUG
+    // fprintf("DEBUG: Kernel emulator: handling SysCall.\n");
     ret = handleInvocation(true, true, true, false,
                            getRegister(NODE_STATE(ksCurThread), capRegister));
     if (unlikely(ret != EXCEPTION_NONE)) {

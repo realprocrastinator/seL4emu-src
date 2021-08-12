@@ -57,8 +57,8 @@ static seL4emu_err_t get_and_map_bootinfo(int socket, seL4_BootInfo **bootinfo) 
 
   // must be a internal message from kernel emulator, otherwise this
   // is a bug!
-  assert(msg.tag == IPC_INTERNAL);
-  assert(msg.words[0] == SEL4EMU_INTERNAL_BOOTINFO);
+  mini_assert(msg.tag == IPC_INTERNAL);
+  mini_assert(msg.words[0] == SEL4EMU_INTERNAL_BOOTINFO);
 
   // unmarshal the data
   // words[1] is the bootvaddr that kernel decided for us, try map!
@@ -106,7 +106,7 @@ static void sigsegvhdlr(int sig, siginfo_t *info, void *ctx) {
   if (sig == SIGSEGV) {
     mini_printf("SEGV @%lx!\n", (unsigned long)info->si_addr);
     // check align with one page;
-    assert((((unsigned long)info->si_addr) & (0x1000 - 1)) == 0);
+    mini_assert((((unsigned long)info->si_addr) & (0x1000 - 1)) == 0);
     char *addr = (char *)mini_mmap(info->si_addr, 4096, PROT_READ | PROT_WRITE,
                                    MAP_ANONYMOUS | MAP_PRIVATE | MAP_FIXED, -1, 0);
     if (addr == MAP_FAILED) {
@@ -114,7 +114,7 @@ static void sigsegvhdlr(int sig, siginfo_t *info, void *ctx) {
       _exit(0); // halt in a infinite loop
     }
     mini_printf("New mapping addr @%p.\n", addr);
-    assert((((unsigned long)info->si_addr) & ~(0x1000 - 1)) == (unsigned long)addr);
+    mini_assert((((unsigned long)info->si_addr) & ~(0x1000 - 1)) == (unsigned long)addr);
   }
 }
 

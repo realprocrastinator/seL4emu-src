@@ -23,38 +23,37 @@ static inline cr3_t makeCR3(paddr_t addr, word_t pcid)
 /* Address space control */
 static inline cr3_t getCurrentCR3(void)
 {
-// #ifdef CONFIG_KERNEL_SKIM_WINDOW
-//     /* If we're running in the kernel to call this function, then by definition
-//      * this must be the current cr3 */
-//     return cr3_new(kpptr_to_paddr(x64KSKernelPML4), 0);
-// #else
-//     return MODE_NODE_STATE(x64KSCurrentCR3);
-// #endif
-    assert(!"Not implemented yet");
+#ifdef CONFIG_KERNEL_SKIM_WINDOW
+    /* If we're running in the kernel to call this function, then by definition
+     * this must be the current cr3 */
+    return cr3_new(kpptr_to_paddr(x64KSKernelPML4), 0);
+#else
+    return MODE_NODE_STATE(x64KSCurrentCR3);
+#endif
 }
 
 static inline cr3_t getCurrentUserCR3(void)
 {
-// #ifdef CONFIG_KERNEL_SKIM_WINDOW
-//     // Construct a cr3_t from the state word, dropping any command information
-//     // if needed
-//     word_t cr3_word = MODE_NODE_STATE(x64KSCurrentUserCR3);
-//     cr3_t cr3_ret;
-//     if (config_set(CONFIG_SUPPORT_PCID)) {
-//         cr3_word &= ~BIT(63);
-//     }
-//     cr3_ret.words[0] = cr3_word;
-//     return cr3_ret;
-// #else
-//     return getCurrentCR3();
-// #endif
-  assert(!"Not implemented yet");
+    assert(!"Not implemented yet");
+#ifdef CONFIG_KERNEL_SKIM_WINDOW
+    // Construct a cr3_t from the state word, dropping any command information
+    // if needed
+    word_t cr3_word = MODE_NODE_STATE(x64KSCurrentUserCR3);
+    cr3_t cr3_ret;
+    if (config_set(CONFIG_SUPPORT_PCID)) {
+        cr3_word &= ~BIT(63);
+    }
+    cr3_ret.words[0] = cr3_word;
+    return cr3_ret;
+#else
+    return getCurrentCR3();
+#endif
 }
 
 static inline paddr_t getCurrentUserVSpaceRoot(void)
 {
-    // return cr3_get_pml4_base_address(getCurrentUserCR3());
     assert(!"Not implemented yet");
+    return cr3_get_pml4_base_address(getCurrentUserCR3());
 }
 
 static inline void setCurrentCR3(cr3_t cr3, word_t preserve_translation)
@@ -76,10 +75,8 @@ static inline void setCurrentCR3(cr3_t cr3, word_t preserve_translation)
     } else {
         assert(cr3_get_pcid(cr3) == 0);
     }
-    printf("Write to cr3 register. Value = %lx\n", cr3_word);
     // write_cr3(cr3_word);
-
-//   assert(!"Not implemented yet");
+    fprintf(stdout, "Fake: write to cr3 register with Value = %lx\n", cr3_word);
 }
 
 /* there is no option for preservation translation when setting the user cr3
@@ -87,35 +84,32 @@ static inline void setCurrentCR3(cr3_t cr3, word_t preserve_translation)
    If translation needs to be flushed then setCurrentCR3 should be used instead */
 static inline void setCurrentUserCR3(cr3_t cr3)
 {
-// #ifdef CONFIG_KERNEL_SKIM_WINDOW
-//     // To make the restore stubs more efficient we will set the preserve_translation
-//     // command in the state. If we look at the cr3 later on we need to remember to
-//     // remove that bit
-//     word_t cr3_word = cr3.words[0];
-//     if (config_set(CONFIG_SUPPORT_PCID)) {
-//         cr3_word |= BIT(63);
-//     }
-//     MODE_NODE_STATE(x64KSCurrentUserCR3) = cr3_word;
-// #else
-//     setCurrentCR3(cr3, 1);
-// #endif
-  assert(!"Not implemented yet");
+#ifdef CONFIG_KERNEL_SKIM_WINDOW
+    // To make the restore stubs more efficient we will set the preserve_translation
+    // command in the state. If we look at the cr3 later on we need to remember to
+    // remove that bit
+    word_t cr3_word = cr3.words[0];
+    if (config_set(CONFIG_SUPPORT_PCID)) {
+        cr3_word |= BIT(63);
+    }
+    MODE_NODE_STATE(x64KSCurrentUserCR3) = cr3_word;
+#else
+    setCurrentCR3(cr3, 1);
+#endif
 }
 
 static inline void setCurrentVSpaceRoot(paddr_t addr, word_t pcid)
 {
     setCurrentCR3(makeCR3(addr, pcid), 1);
-    // assert(!"Not implemented yet");
 }
 
 static inline void setCurrentUserVSpaceRoot(paddr_t addr, word_t pcid)
 {
-// #ifdef CONFIG_KERNEL_SKIM_WINDOW
-//     setCurrentUserCR3(makeCR3(addr, pcid));
-// #else
-//     setCurrentVSpaceRoot(addr, pcid);
-// #endif
-  assert(!"Not implemented yet");
+#ifdef CONFIG_KERNEL_SKIM_WINDOW
+    setCurrentUserCR3(makeCR3(addr, pcid));
+#else
+    setCurrentVSpaceRoot(addr, pcid);
+#endif
 }
 
 /* GDT installation */

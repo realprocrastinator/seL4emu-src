@@ -33,8 +33,14 @@ typedef struct boot_state {
 
 extern boot_state_t boot_state;
 
+#ifndef CONFIG_SEL4_USE_EMULATION
 void boot_sys(
     unsigned long multiboot_magic,
     void *multiboot
 );
-
+#else
+int boot_sys(
+    unsigned long multiboot_magic,
+    void *multiboot
+);
+#endif

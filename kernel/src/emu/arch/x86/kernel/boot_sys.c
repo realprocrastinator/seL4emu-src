@@ -80,7 +80,7 @@ BOOT_CODE static paddr_t find_load_paddr(paddr_t min_paddr, word_t image_size) {
 
 BOOT_CODE static paddr_t load_boot_module(word_t boot_module_start, paddr_t load_paddr) {
   // TODO(Jiawei): To implement this, parse ELF to get the info
-  printf("Fake load boot module!\n Don't do anything.\n");
+  fprintf(stdout, "Fake loading boot module! We don't do anything actually.\n");
 
   v_region_t v_reg;
   word_t entry;
@@ -531,7 +531,7 @@ static BOOT_CODE bool_t try_boot_sys_mbi1(multiboot_info_t *mbi) {
   // TODO(Jiawei): hard coded here for testing
   multiboot_module_t *modules = (multiboot_module_t *)(word_t)mbi->part1.mod_list;
   if (!modules) {
-    printf("No modules found, fake this!\n");
+    fprintf(stdout, "No modules found, emulation framework will fake all!\n");
     multiboot_module_t module = {.start = 10567680, .end = 11106400, .name = 10563600, .reserved = 0};
     modules = &module;
   }
@@ -722,7 +722,7 @@ static BOOT_CODE bool_t try_boot_sys_mbi2(multiboot2_header_t *mbi2) {
   return false;
 }
 
-BOOT_CODE VISIBLE void boot_sys(unsigned long multiboot_magic, void *mbi) {
+BOOT_CODE VISIBLE int boot_sys(unsigned long multiboot_magic, void *mbi) {
   bool_t result = false;
 
   if (multiboot_magic == MULTIBOOT_MAGIC) {
@@ -730,7 +730,7 @@ BOOT_CODE VISIBLE void boot_sys(unsigned long multiboot_magic, void *mbi) {
   } else if (multiboot_magic == MULTIBOOT2_MAGIC) {
     result = try_boot_sys_mbi2(mbi);
   } else {
-    printf("Boot loader is not multiboot 1 or 2 compliant %lx\n", multiboot_magic);
+    fprintf(stdout, "Boot loader is not multiboot 1 or 2 compliant %lx\n", multiboot_magic);
   }
 
   if (result) {
@@ -738,7 +738,8 @@ BOOT_CODE VISIBLE void boot_sys(unsigned long multiboot_magic, void *mbi) {
   }
 
   if (!result) {
-    fail("boot_sys failed for some reason :(\n");
+    fprintf(stderr, "boot_sys failed for some reason :(\n");
+    return -1;
   }
 
   ARCH_NODE_STATE(x86KScurInterrupt) = int_invalid;
@@ -752,4 +753,6 @@ BOOT_CODE VISIBLE void boot_sys(unsigned long multiboot_magic, void *mbi) {
 
   schedule();
   activateThread();
+
+  return 0;
 }

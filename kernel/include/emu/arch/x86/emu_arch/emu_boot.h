@@ -1,1 +1,1 @@
-void seL4emu_boot(void);
+int seL4emu_boot(void);

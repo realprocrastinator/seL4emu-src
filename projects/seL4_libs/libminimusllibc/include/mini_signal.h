@@ -275,7 +275,7 @@ int mini_sigandset(sigset_t *, const sigset_t *, const sigset_t *);
 typedef int sig_atomic_t;
 
 // void (*signal(int, void (*)(int)))(int);
-// int raise(int);
+int mini_raise(int);
 
 #if _REDIR_TIME64
 #if defined(_POSIX_SOURCE) || defined(_POSIX_C_SOURCE) \

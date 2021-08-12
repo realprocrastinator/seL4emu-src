@@ -334,7 +334,8 @@ void doNBRecvFailedTransfer(tcb_t *thread) {
 // }
 
 void schedule(void) {
-  printf("Calling scheduler! Do nothing at the moment.\n");
+  // DEBUG
+  // fprintf(stdout, "DEBUG: Kernel emulator: calling scheduler, do nothing at the moment.\n");
   // assert(!"Not implemented yet");
   // #ifdef CONFIG_KERNEL_MCS
   //     awaken();

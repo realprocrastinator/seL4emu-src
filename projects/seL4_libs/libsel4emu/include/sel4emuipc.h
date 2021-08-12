@@ -1,6 +1,6 @@
 #pragma once
 
-#include <assert.h>
+#include <mini_assert.h>
 #include <sel4/types.h>
 #include <stddef.h>
 
@@ -135,20 +135,20 @@ typedef struct seL4emu_ipc_message seL4emu_ipc_message_t;
 static inline void seL4emu_set_ipc_register(seL4_Word word,
                                             seL4emu_ipc_message_t *msg,
                                             enum _register type) {
-  assert(msg);
+  mini_assert(msg);
   msg->words[type] = word;
 }
 
 static inline seL4_Word seL4emu_get_ipc_register(seL4emu_ipc_message_t *msg,
                                                  enum _register type) {
-  assert(msg);
+  mini_assert(msg);
   return msg->words[type];
 }
 
 static inline void seL4emu_set_ipc_data(seL4_Word word,
                                             seL4emu_ipc_message_t *msg,
                                             enum seL4emu_ipc_data type) {
-  assert(msg);
+  mini_assert(msg);
   switch(type) {
   case TAG:
     msg->tag = word;
@@ -160,13 +160,13 @@ static inline void seL4emu_set_ipc_data(seL4_Word word,
     msg->id = word;
     break;
   default:
-    assert(!"Not supported data type");
+    mini_assert(!"Not supported data type");
   };
 }
 
 static inline seL4_Word seL4emu_get_ipc_data(seL4emu_ipc_message_t *msg,
                                                  enum seL4emu_ipc_data type) {
-  assert(msg);
+  mini_assert(msg);
   seL4_Word ret;
   switch(type) {
   case TAG:
@@ -179,7 +179,7 @@ static inline seL4_Word seL4emu_get_ipc_data(seL4emu_ipc_message_t *msg,
     ret = msg->id;
     break;
   default:
-    assert(!"Not supported data type");
+    mini_assert(!"Not supported data type");
   };
 
   return ret;

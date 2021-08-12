@@ -56,24 +56,24 @@ void seL4emu_sys_send_null(seL4_Word sys, seL4_Word dest, seL4_Word info) {
 
     /* TODO(Jiawei): query the CPUID to check if can use fabase instruction
      * familly */
-    mini_printf("Got syscall seL4_SysSetTLSBase, setting up the TLS now.\n");
+    // mini_printf("Got syscall seL4_SysSetTLSBase, setting up the TLS now.\n");
     unsigned long base = 0;
 
-    asm volatile("rdfsbase %0" : "=r"(base));
-    mini_printf("Old seL4_SysSetTLSBase is at: %lx now.\n", base);
+    // asm volatile("rdfsbase %0" : "=r"(base));
+    // mini_printf("Old seL4_SysSetTLSBase is at: %lx now.\n", base);
 
     asm volatile("wrfsbase %0" ::"r"(dest));
 
-    asm volatile("rdfsbase %0" : "=r"(base));
-    mini_printf("New seL4_SysSetTLSBase is at: %lx now.\n", base);
+    // asm volatile("rdfsbase %0" : "=r"(base));
+    // mini_printf("New seL4_SysSetTLSBase is at: %lx now.\n", base);
 
     break;
   }
   default:
     /* TODO(Jiawei): Other syscalls requests we will just forward to the kernel
      * emulator */
-    mini_printf("Got syscalls other then seL4_SysSetTLSBase, forwarding to the "
-                "server now.\n");
+    // mini_printf("Got syscalls other then seL4_SysSetTLSBase, forwarding to the "
+    //             "server now.\n");
     break;
   }
 }

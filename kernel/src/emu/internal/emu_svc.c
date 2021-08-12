@@ -69,13 +69,11 @@ static int handle_seL4syscalls(int sock, seL4emu_ipc_message_t *msg) {
   word_t msg_info = seL4emu_get_ipc_register(msg, RSI);
   pid_t pid = (pid_t)seL4emu_get_ipc_data(msg, ID);
 
-  //DEBUG
-  word_t xcap = ((seL4_IPCBuffer *)rootserver.ipc_buf)->caps_or_badges[0];
-
-  printf("From=%ld, tag=%lu, len=%lu, sys=%ld, dest/capreg=%lu, msginfo=%lu, msg0=%lu, msg1=%lu, "
-         "msg2=%lu, msg3=%lu, seL4_GetIPCBuffer->caps_or_badges=%lu\n",
-         msg->id, msg->tag, msg->len, syscall, cptr, msg_info, msg->words[R10], msg->words[R8],
-         msg->words[R9], msg->words[R15], xcap);
+  // DEBUG printing
+  // fprintf(stdout, "From=%ld, tag=%lu, len=%lu, sys=%ld, dest/capreg=%lu, msginfo=%lu, msg0=%lu, msg1=%lu, "
+  //        "msg2=%lu, msg3=%lu, seL4_GetIPCBuffer->caps_or_badges=%lu\n",
+  //        msg->id, msg->tag, msg->len, syscall, cptr, msg_info, msg->words[R10], msg->words[R8],
+  //        msg->words[R9], msg->words[R15], xcap);
 
   // In the real seL4 system, the `NODE_STATE(ksCurThread)` always points to the current running
   // thread. And in trap.S, we use LOAD_USER_CONTEXT, to point the `rsp` to the use current `tcb`,
@@ -85,7 +83,7 @@ static int handle_seL4syscalls(int sock, seL4emu_ipc_message_t *msg) {
   NODE_STATE(ksCurThread) = curtcb;
   assert(NODE_STATE(ksCurThread));
 
-  /* copy ipc buffer to the tcb structure */
+  // copy ipc buffer to the tcb structure
 
   // stash the seL4 threads data
   seL4emu_store_user_context(curtcb, msg->words);
@@ -99,7 +97,7 @@ static int handle_seL4syscalls(int sock, seL4emu_ipc_message_t *msg) {
   // TODO(Jiawei): as the scheduler is not implemented yet, we just resume!
 
 
-  /* emulates restoring the user context */
+  // emulates restoring the user context
   seL4emu_ipc_message_t reply;
   reply.tag = IPC_INTERNAL;
   memcpy(reply.words, curtcb->tcbArch.tcbContext.registers ,sizeof(word_t) * n_contextRegisters);

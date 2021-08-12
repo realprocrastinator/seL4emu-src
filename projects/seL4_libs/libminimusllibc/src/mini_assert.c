@@ -1,9 +1,19 @@
 #include "../include/mini_syscalls.h"
 #include "../include/mini_string.h"
 #include "../include/mini_stdio.h"
+#include "../include/mini_signal.h"
+
+// TODO(Jiawei): Move to mini_atomic headers
+static inline void a_crash()
+{
+	*(volatile char *)0=0;
+}
 
 _Noreturn void mini_abort(void) {
-  // raise(SIGABRT);
+  /* Make sure we never installed a SIGABRT handler, and the current
+	 * minimusllibc doesn't care with pthreads. So just abort!
+	 */
+	mini_raise(SIGABRT);
 
 	/* If there was a SIGABRT handler installed and it returned, or if
 	 * SIGABRT was blocked or ignored, take an AS-safe lock to prevent
@@ -19,17 +29,16 @@ _Noreturn void mini_abort(void) {
 	// __syscall(SYS_rt_sigprocmask, SIG_UNBLOCK,
 	// 	&(long[_NSIG/(8*sizeof(long))]){1UL<<(SIGABRT-1)}, 0, _NSIG/8);
 
-	// /* Beyond this point should be unreachable. */
-	// a_crash();
-	// raise(SIGKILL);
+	/* Beyond this point should be unreachable. */
+	a_crash();
+	mini_raise(SIGKILL);
 	// _Exit(127);
 	
-	// TODO(Jiawei): As the signal hasn't been finished yet, we call exit to simulate the aborting. Make sure we change it later once the signal works.
 	_mini_Exit(127);
 }
 
 _Noreturn void __mini_assert_fail(const char *expr, const char *file, int line, const char *func)
 {
-	mini_printf("seL4 emulation assertion failed: %s (%s: %s: %d)\n", expr, file, func, line);
+	mini_printf("seL4emu assertion failed: %s (%s: %s: %d)\n", expr, file, func, line);
 	mini_abort();
 }

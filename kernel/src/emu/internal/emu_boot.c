@@ -19,7 +19,7 @@ extern char *ki_end;
 extern char *ki_skim_start;
 extern char *ki_skim_end;
 
-void seL4emu_boot(void) {
+int seL4emu_boot(void) {
 
   /* map a file backed memory to emulate the physical memory */
 
@@ -50,5 +50,5 @@ void seL4emu_boot(void) {
 
   mbi.part2.mmap_length = 144;
 
-  boot_sys(MULTIBOOT_MAGIC, &mbi);
+  return boot_sys(MULTIBOOT_MAGIC, &mbi);
 }
